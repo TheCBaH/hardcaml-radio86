@@ -1,0 +1,38 @@
+{
+  "name": "hardcaml-js",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "features": {
+    "ghcr.io/devcontainers/features/common-utils:2": {
+      "username": "vscode",
+      "upgradePackages": false
+    },
+    "ghcr.io/devcontainers/features/sshd:1": {},
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "24.19.0"
+    },
+    "ghcr.io/thecbah/ocaml-features/ocaml:1": {
+      "version": "${localEnv:OCAML_VERSION:5.4.1}",
+      "packages": "dune#3.24.2 hardcaml js_of_ocaml#6.4.1 js_of_ocaml-compiler#6.4.1 melange#7.0.1-54 ocamlformat#0.29.0 ppx_expect zarith_stubs_js",
+      "base-packages": "",
+      "ocaml-version-overrides": "astring#0.8.5@5.4.1 base#v0.17.3@5.4.1 camlp-streams#5.0.1@5.4.1 cmdliner#2.1.1@5.4.1 cppo#1.8.0@5.4.1 csexp#1.5.2@5.4.1 dune#3.24.2@5.4.1 dune-build-info#3.24.2@5.4.1 dune-configurator#3.24.2@5.4.1 either#1.0.0@5.4.1 fix#20250919@5.4.1 fpath#0.7.3@5.4.1 gen#1.1@5.4.1 js_of_ocaml#6.4.1@5.4.1 js_of_ocaml-compiler#6.4.1@5.4.1 melange#7.0.1-54@5.4.1 menhir#20260209@5.4.1 menhirCST#20260209@5.4.1 menhirGLR#20260209@5.4.1 menhirLib#20260209@5.4.1 menhirSdk#20260209@5.4.1 ocaml-compiler-libs#v0.17.0@5.4.1 ocaml-version#4.1.4@5.4.1 ocaml_intrinsics_kernel#v0.17.2@5.4.1 ocamlbuild#0.16.1@5.4.1 ocamlfind#1.9.8@5.4.1 ocamlformat#0.29.0@5.4.1 ocamlformat-lib#0.29.0@5.4.1 ocp-indent#1.10.0@5.4.1 ppx_derivers#1.2.1@5.4.1 ppxlib#0.38.0@5.4.1 re#1.14.0@5.4.1 sedlex#3.7@5.4.1 sexplib0#v0.17.0@5.4.1 stdio#v0.17.0@5.4.1 stdlib-shims#0.3.0@5.4.1 topkg#1.1.1@5.4.1 uucp#18.0.0@5.4.1 uuseg#18.0.0@5.4.1 uutf#1.0.4@5.4.1 yojson#3.0.0@5.4.1"
+    }
+  },
+  "remoteUser": "vscode",
+  "containerEnv": {
+    "OPAMROOT": "/opt/opam"
+  },
+  "postCreateCommand": {
+    "opam": "sudo .devcontainer/fix-opam-owner.sh $(id -u) $(id -g)",
+    "submodules": "git submodule update --recursive --init --depth=1"
+  },
+  "waitFor": "postCreateCommand",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ocamllabs.ocaml-platform"
+      ]
+    }
+  }
+}

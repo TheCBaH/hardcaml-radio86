@@ -44,6 +44,11 @@ $obs observe --manifest "$manifest" --trace "$pre/8080PRE.fst" --export "$out/80
 $obs replay "$out/8080PRE.export"
 $obs lockstep --known "$here/test/lockstep-known.txt" --manifest "$manifest" --trace "$pre/8080PRE.fst" \
     --program "$diag/8080PRE.COM" --shim "$diag"
+# Reading the registers in T1 of the next fetch is too early on vm80a: the lockstep must notice.
+sed 's/"fetch_accepted"/"fetch_t1"/' "$manifest" > "$out/t1-manifest.json"
+$obs lockstep --expect-divergence --manifest "$out/t1-manifest.json" --trace "$pre/8080PRE.fst" \
+    --program "$diag/8080PRE.COM" --shim "$diag"
+sh "$here/scripts/retrocpu-fetch-test.sh" "$1"
 for bug in aux carry; do
     $obs lockstep --plant "$bug" --expect-divergence --manifest "$manifest" --trace "$pre/8080PRE.fst" \
         --program "$diag/8080PRE.COM" --shim "$diag"

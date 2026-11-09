@@ -1,0 +1,6 @@
+(library
+ (name i8080_rtl)
+ (public_name hardcaml-radio86.i8080_rtl)
+ (libraries hardcaml)
+ (preprocess
+  (pps ppx_hardcaml)))

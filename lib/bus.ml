@@ -102,8 +102,8 @@ let step t (f : Frame.t) =
         in_reset := true
       end
   | Some false -> in_reset := false);
-  if f.reset <> Some true then begin
-    match f.sync with
+  if f.reset <> Some true then
+    begin match f.sync with
     | None -> note "SYNC is unknown (X or Z)"
     | Some true ->
         (* T1: a new cycle; a write the previous cycle was still holding ends here *)
@@ -152,21 +152,21 @@ let step t (f : Frame.t) =
         | None -> ()
         | Some o when o.closed -> ()
         | Some o ->
-            if o.c.kind = Halt_ack then begin
-              match f.wait with
+            if o.c.kind = Halt_ack then
+              begin match f.wait with
               | Some true ->
                   o.closed <- true;
                   emit (Done (snapshot o ~last:f.n ~data:None))
               | None -> note "WAIT is unknown (X or Z)"
               | Some false -> ()
-            end
+              end
             else begin
               (match f.wait with
               | Some true -> o.waits <- o.waits + 1
               | None -> note "WAIT is unknown (X or Z)"
               | Some false -> ());
-              if o.read then begin
-                match f.dbin with
+              if o.read then
+                begin match f.dbin with
                 | None -> note "DBIN is unknown (X or Z)"
                 | Some true -> o.dbin_seen <- true
                 | Some false ->
@@ -175,9 +175,9 @@ let step t (f : Frame.t) =
                       if f.din = None then note "the accepted byte on the data bus is unknown";
                       emit (Done (snapshot o ~last:f.n ~data:f.din))
                     end
-              end
-              else begin
-                match f.wr_n with
+                end
+              else
+                begin match f.wr_n with
                 | None -> note "WR is unknown (X or Z)"
                 | Some false ->
                     o.wr_seen <- true;
@@ -189,9 +189,9 @@ let step t (f : Frame.t) =
                       o.closed <- true;
                       emit (Done (snapshot o ~last:o.wlast ~data:o.wdata))
                     end
-              end
+                end
             end)
-  end;
+    end;
   ({ epoch = !epoch; seq = !seq; prev = Some f; cur = !cur; in_reset = !in_reset }, List.rev !outs)
 
 let finish t = match t.cur with None -> [] | Some o -> finish_open o "end of the capture"

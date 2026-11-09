@@ -1,0 +1,6 @@
+(library
+ (name i8080_rtl_test)
+ (inline_tests)
+ (preprocess
+  (pps ppx_expect ppx_hardcaml))
+ (libraries hardcaml i8080_rtl))

@@ -12,7 +12,7 @@ deps:
 versions:
 	$(OPAM_EXEC) ocamlfind ocamlopt -version
 	$(DUNE) --version
-	$(OPAM_EXEC) ocamlfind list 2>/dev/null | grep -E '^(hwfrp|rivet|ovcd|fst|unlz4|err_trace|jsont|ocamlformat)[. ]' || true
+	$(OPAM_EXEC) ocamlfind list 2>/dev/null | grep -E '^(hwfrp|hardcaml|rivet|ovcd|fst|unlz4|err_trace|jsont|ocamlformat)[. ]' || true
 
 build:
 	$(DUNE) build

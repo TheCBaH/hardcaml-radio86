@@ -11,7 +11,9 @@
     "ghcr.io/devcontainers/features/sshd:1": {},
     "ghcr.io/thecbah/ocaml-features/ocaml:1": {
       "version": "${localEnv:OCAML_VERSION:5.4.1}",
-      "packages": "bytesrw cmdliner dune fmt hwfrp jsont menhir ocamlformat#0.28.1 ppx_expect qcheck-core rivet",
+      "packages": "bytesrw cmdliner dune#3.24.2 fmt hardcaml#v0.17.1 hwfrp jsont menhir ocamlformat#0.29.0 ppx_expect ppx_hardcaml#v0.17.1 qcheck-core rivet",
+      "base-packages": "",
+      "ocaml-version-overrides": "astring#0.8.5@5.4.1 base#v0.17.3@5.4.1 camlp-streams#5.0.1@5.4.1 cmdliner#2.1.1@5.4.1 cppo#1.8.0@5.4.1 csexp#1.5.2@5.4.1 dune#3.24.2@5.4.1 dune-build-info#3.24.2@5.4.1 dune-configurator#3.24.2@5.4.1 either#1.0.0@5.4.1 fix#20250919@5.4.1 fpath#0.7.3@5.4.1 gen#1.1@5.4.1 menhir#20260209@5.4.1 menhirCST#20260209@5.4.1 menhirGLR#20260209@5.4.1 menhirLib#20260209@5.4.1 menhirSdk#20260209@5.4.1 ocaml-compiler-libs#v0.17.0@5.4.1 ocaml-version#4.1.4@5.4.1 ocaml_intrinsics_kernel#v0.17.2@5.4.1 ocamlbuild#0.16.1@5.4.1 ocamlfind#1.9.8@5.4.1 ocamlformat#0.29.0@5.4.1 ocamlformat-lib#0.29.0@5.4.1 ocp-indent#1.10.0@5.4.1 ppx_derivers#1.2.1@5.4.1 ppxlib#0.38.0@5.4.1 re#1.14.0@5.4.1 sedlex#3.7@5.4.1 sexplib0#v0.17.0@5.4.1 stdio#v0.17.0@5.4.1 stdlib-shims#0.3.0@5.4.1 topkg#1.1.1@5.4.1 uucp#18.0.0@5.4.1 uuseg#18.0.0@5.4.1 uutf#1.0.4@5.4.1 yojson#3.0.0@5.4.1",
       "pin-packages": "zipc git+https://github.com/dbuenzli/zipc.git#4335e845388b05b9161c8fd58b4ef4363819e43b,unlz4 git+https://github.com/TheCBaH/ocaml-unlz4.git#f5446abf9a4ce4beb92b02ee958f345a6c8171bd,fst git+https://github.com/TheCBaH/ocaml-fst.git#32d68870539fb7422c86e5d8fc62db8568b173a7,ovcd git+https://github.com/TheCBaH/ovcd.git#9e6d53af48db166d095a506ed350682c7683b48b,err_trace git+https://github.com/TheCBaH/err_trace.git#1c7a6ba94c81c70008c594c709e7d37feb38f435,hwfrp git+https://github.com/TheCBaH/coralview.git#e78a32bea0c433612a880f05dc39e60f766185cf,rivet git+https://github.com/TheCBaH/rivet.git#932dcbd88b2b35846f5959d9d6a9ac2fcf695d91"
     }
   },

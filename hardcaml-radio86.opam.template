@@ -1,0 +1,12 @@
+x-ai-disclosure: "ai-generated"
+x-ai-provider: "Anthropic"
+# None of these are in opam-repository yet; pin-depends is not transitive.
+pin-depends: [
+  ["zipc.dev" "git+https://github.com/dbuenzli/zipc.git#4335e845388b05b9161c8fd58b4ef4363819e43b"]
+  ["unlz4.dev" "git+https://github.com/TheCBaH/ocaml-unlz4.git#f5446abf9a4ce4beb92b02ee958f345a6c8171bd"]
+  ["fst.dev" "git+https://github.com/TheCBaH/ocaml-fst.git#32d68870539fb7422c86e5d8fc62db8568b173a7"]
+  ["ovcd.dev" "git+https://github.com/TheCBaH/ovcd.git#9e6d53af48db166d095a506ed350682c7683b48b"]
+  ["err_trace.0.1.0" "git+https://github.com/TheCBaH/err_trace.git#1c7a6ba94c81c70008c594c709e7d37feb38f435"]
+  ["hwfrp.dev" "git+https://github.com/TheCBaH/coralview.git#e78a32bea0c433612a880f05dc39e60f766185cf"]
+  ["rivet.dev" "git+https://github.com/TheCBaH/rivet.git#932dcbd88b2b35846f5959d9d6a9ac2fcf695d91"]
+]

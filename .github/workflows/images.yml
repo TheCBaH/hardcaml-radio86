@@ -1,0 +1,57 @@
+name: images
+on:
+  push:
+    branches:
+      - '**'
+  workflow_dispatch:
+permissions:
+  contents: read
+  packages: write
+concurrency:
+  group: images-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  devcontainer:
+    strategy:
+      fail-fast: false
+      matrix:
+        ocaml_version: ['5.4.1']
+        os: [ubuntu-24.04, ubuntu-24.04-arm]
+        include:
+          - os: ubuntu-24.04
+            platform: linux/amd64
+          - os: ubuntu-24.04-arm
+            platform: linux/arm64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: false
+          persist-credentials: false
+      - name: Authenticate image cache
+        run: echo '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io -u '${{ github.actor }}' --password-stdin
+      - name: Seed promoted image cache
+        if: github.ref_name == github.event.repository.default_branch
+        run: |
+          repo=$(echo "$GITHUB_REPOSITORY" | tr '[:upper:]' '[:lower:]')
+          platform='${{ matrix.platform }}'
+          image="ghcr.io/$repo/devcontainer-${{ matrix.ocaml_version }}-${platform#linux/}"
+          tag=$(echo "$GITHUB_REF_NAME" | tr '[:upper:].' '[:lower:]_')
+          if docker buildx imagetools inspect "$image:devel" >/dev/null 2>&1; then
+            docker buildx imagetools create --prefer-index=false -t "$image:$tag" "$image:devel"
+          fi
+      - name: Development container
+        id: container
+        uses: TheCBaH/devcontainer-action/devcontainer@v1
+        env:
+          OCAML_VERSION: ${{ matrix.ocaml_version }}
+        with:
+          cli-version: '0.88.0'
+          post-create: 'false'
+          variant: ${{ matrix.ocaml_version }}
+          platform: ${{ matrix.platform }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Check cached build dependencies
+        run: ${{ steps.container.outputs.exec }} bash -ec 'test "$(opam exec -- ocamlc -version)" = "${{ matrix.ocaml_version }}"; opam exec -- ocamlfind query hwfrp rivet.i8080_text rivet.i8080_sem jsont'

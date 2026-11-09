@@ -6,7 +6,8 @@
         "ghcr.io/devcontainers/features/sshd:1": {},
         "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {
             "enableNonRootDocker": "true",
-            "moby": "false"
+            "moby": "false",
+            "dockerDashComposeVersion": "none"
         }
     },
     "postCreateCommand": ". ${NVM_DIR}/nvm.sh && npm install -g @devcontainers/cli",

@@ -1,0 +1,11 @@
+# The retrocpu-tools release this repository observes: vm80a_sim (Verilator, FST
+# output, internal registers) and the 8080 exercisers. Nothing is built here:
+# scripts/retrocpu-fetch.sh downloads these assets by tag and refuses anything whose
+# SHA-256 differs from the lines below (the release's SHA256SUMS).
+RETROCPU_REPO=TheCBaH/devcontainer.retrocpu-tools
+RETROCPU_TAG=v0.0.2
+
+RETROCPU_SHA256_diagnostics_x86_64=33b917d1cf8cecfd0e59c69eed540285074c523ac0631a2f4928bac67b3081a7
+RETROCPU_SHA256_diagnostics_aarch64=5b7b99c73c29e706c3ff2cab5305872017579ccb1a8ac8fb2abaa32a58f1d48d
+RETROCPU_SHA256_vm80a_x86_64=84fe4a38554a1d0945cf8546a8beff62ffacd8e50d3e84b31e487da5dee00081
+RETROCPU_SHA256_vm80a_aarch64=aae50f0729986742140e6b78d6a08a136b938e5668a646d62d94090742d751b4

@@ -1,0 +1,53 @@
+name: build
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+  packages: read
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        ocaml_version: ['5.4.1']
+        os: [ubuntu-24.04, ubuntu-24.04-arm]
+        include:
+          - os: ubuntu-24.04
+            platform: linux/amd64
+          - os: ubuntu-24.04-arm
+            platform: linux/arm64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          submodules: false
+          persist-credentials: false
+      - name: Authenticate image cache
+        run: echo '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io -u '${{ github.actor }}' --password-stdin
+      - name: Development container
+        uses: TheCBaH/devcontainer-action/devcontainer@v1
+        id: container
+        env:
+          OCAML_VERSION: ${{ matrix.ocaml_version }}
+        with:
+          cli-version: '0.88.0'
+          post-create: 'false'
+          variant: ${{ matrix.ocaml_version }}
+          platform: ${{ matrix.platform }}
+      - name: Versions
+        run: ${{ steps.container.outputs.exec }} make versions
+      - name: Format, build, unit tests, vm80a observation
+        run: ${{ steps.container.outputs.exec }} make ci
+      - name: Observation artifacts
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: observation-${{ matrix.os }}
+          path: out/
+          if-no-files-found: warn

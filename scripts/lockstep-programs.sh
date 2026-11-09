@@ -10,7 +10,7 @@ diag=$rel/retrocpu-diagnostics
 here=$(cd "$(dirname "$0")/.." && pwd)
 work=$here/out/programs
 mkdir -p "$work"
-obs="dune exec --no-print-directory -- i8080_observe"
+obs="opam exec -- dune exec --no-print-directory -- i8080_observe"
 caught=0 agree=0 instrs=0 classified=0
 s=1
 while [ "$s" -le "$seeds" ]; do

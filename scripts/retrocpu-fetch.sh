@@ -26,7 +26,7 @@ for a in $assets; do
     if [ -n "${RETROCPU_ASSETS:-}" ]; then
         cp "$RETROCPU_ASSETS/$name" "$f"
     elif [ ! -f "$f" ]; then
-        curl -fsSL --retry 3 -o "$f" \
+        curl -fsSL --retry 6 --retry-all-errors --retry-delay 10 -o "$f" \
             "https://github.com/$RETROCPU_REPO/releases/download/$RETROCPU_TAG/$name"
     fi
     got=$(sha256sum "$f" | cut -d' ' -f1)

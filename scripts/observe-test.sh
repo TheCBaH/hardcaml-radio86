@@ -9,7 +9,7 @@ diag=$1/retrocpu-diagnostics
 here=$(cd "$(dirname "$0")/.." && pwd)
 out=$here/out
 manifest=$here/manifests/vm80a-fst.json
-obs="dune exec --no-print-directory -- i8080_observe"
+obs="opam exec -- dune exec --no-print-directory -- i8080_observe"
 mkdir -p "$out"
 
 for id in mvi-sta-hlt mvi-sta-hlt-wait2; do

@@ -13,3 +13,7 @@ val compare_transfers : expected:Bus.cycle list -> actual:Bus.cycle list -> offs
 
 val first_t1 : Events.t list -> int option
 (** The T-state of the first cycle start, for [offset]. *)
+
+val compare_pins : expected:Frame.t list -> actual:Frame.t list -> diff list
+(** Row by row. A masked or undriven cell of [expected] is not compared; a cell it gives must be given,
+    and equal, in [actual]. At most 20 differences are listed. *)

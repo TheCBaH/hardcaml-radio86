@@ -100,3 +100,41 @@ let compare_transfers ~expected ~actual ~offset =
 
 let first_t1 evs =
   List.find_map (function Events.Bus (Bus.Start { at; _ }) -> Some at | _ -> None) evs
+
+(* A hand-written or recorded pin trace against the samples of a run, row by row. A cell the expected
+   row masks ([~], or [zz]) is not compared; a cell it gives must be given, and equal, in the sample. *)
+let compare_pins ~(expected : Frame.t list) ~(actual : Frame.t list) =
+  let diffs = ref [] in
+  let add fmt =
+    Printf.ksprintf (fun s -> if List.length !diffs < 20 then diffs := s :: !diffs) fmt
+  in
+  if List.length expected <> List.length actual then
+    add "%d rows expected, %d samples" (List.length expected) (List.length actual);
+  let rec go e a =
+    match (e, a) with
+    | (e : Frame.t) :: er, (a : Frame.t) :: ar ->
+        let cmp name x y =
+          match (x, y) with
+          | Some x, Some y when x <> y -> add "n=%d %s: expected %x, got %x" e.n name x y
+          | Some x, None -> add "n=%d %s: expected %x, got an unknown value" e.n name x
+          | _ -> ()
+        in
+        let cmpb name x y = cmp name (Option.map Bool.to_int x) (Option.map Bool.to_int y) in
+        cmp "a" e.a a.a;
+        cmp "do" e.dout a.dout;
+        cmp "di" e.din a.din;
+        cmpb "sync" e.sync a.sync;
+        cmpb "dbin" e.dbin a.dbin;
+        cmpb "wr_n" e.wr_n a.wr_n;
+        cmpb "wait" e.wait a.wait;
+        cmpb "hlda" e.hlda a.hlda;
+        cmpb "inte" e.inte a.inte;
+        cmpb "ready" e.ready a.ready;
+        cmpb "hold" e.hold a.hold;
+        cmpb "int" e.int_ a.int_;
+        cmpb "reset" e.reset a.reset;
+        go er ar
+    | _ -> ()
+  in
+  go expected actual;
+  List.rev !diffs

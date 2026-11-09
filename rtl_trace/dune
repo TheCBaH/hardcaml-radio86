@@ -1,0 +1,4 @@
+(library
+ (name i8080_rtl_trace)
+ (public_name hardcaml-radio86.i8080_rtl_trace)
+ (libraries i8080_rtl i8080_trace))

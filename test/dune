@@ -5,4 +5,10 @@
    (glob_files ../manifests/*.json)))
  (preprocess
   (pps ppx_expect))
- (libraries i8080_trace hwfrp ovcd.vcd_types))
+ (libraries
+  hardcaml
+  i8080_trace
+  i8080_rtl
+  i8080_rtl_trace
+  hwfrp
+  ovcd.vcd_types))

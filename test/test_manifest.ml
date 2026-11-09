@@ -9,11 +9,11 @@ let%expect_test "the vm80a manifest" =
   Printf.printf "%d signals, registers: %b, snapshot at %s\n" (List.length m.signals)
     (Manifest.has_registers m)
     (match m.snapshot with
-    | Manifest.Next_fetch -> "next fetch"
-    | Manifest.Last_tstate -> "last T-state");
+    | Manifest.Fetch_accepted -> "the accepted fetch"
+    | Manifest.Fetch_t1 -> "the fetch T1");
   [%expect {|
     valid
-    25 signals, registers: true, snapshot at next fetch |}]
+    26 signals, registers: true, snapshot at the accepted fetch |}]
 
 let%expect_test "the JSON round trip is stable" =
   let m = manifest () in

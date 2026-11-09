@@ -1,5 +1,13 @@
 (library
  (name i8080_trace)
  (public_name hardcaml-radio86.i8080_trace)
- (libraries hwfrp hwfrp.native ovcd.vcd_types jsont jsont.bytesrw rivet.i8080_ops rivet.i8080_text
-   rivet.i8080_sem rivet.compute))
+ (libraries
+  hwfrp
+  hwfrp.native
+  ovcd.vcd_types
+  jsont
+  jsont.bytesrw
+  rivet.i8080_ops
+  rivet.i8080_text
+  rivet.i8080_sem
+  rivet.compute))

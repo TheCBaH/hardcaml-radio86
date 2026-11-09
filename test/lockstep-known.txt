@@ -1,0 +1,3 @@
+# Differences between the vm80a core and Rivet's model that were investigated and classified.
+# <first opcode byte, hex> <kind>: <note>
+e3 access order: XTHL writes SP+1 (H) before SP (L) on the 8080 (Intel manual, M4 and M5); Rivet's model writes SP first. Same bytes and registers, only the order differs.

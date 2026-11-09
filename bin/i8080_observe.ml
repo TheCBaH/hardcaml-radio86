@@ -128,6 +128,156 @@ let k4_cmd =
           & opt (some file) None
           & info [ "against" ] ~docv:"FST" ~doc:"Compare with this waveform."))
 
+let parse_known file =
+  List.filter_map
+    (fun line ->
+      let line = String.trim line in
+      if line = "" || line.[0] = '#' then None
+      else
+        match String.index_opt line ':' with
+        | None -> die "%s: expected '<opcode> <kind>: <note>' in %S" file line
+        | Some i -> (
+            let note = String.trim (String.sub line (i + 1) (String.length line - i - 1)) in
+            let head = String.sub line 0 i in
+            match String.index_opt head ' ' with
+            | Some j -> (
+                match int_of_string_opt ("0x" ^ String.sub head 0 j) with
+                | Some op ->
+                    Some
+                      (op, String.trim (String.sub head (j + 1) (String.length head - j - 1)), note)
+                | None -> die "%s: bad opcode in %S" file line)
+            | None -> die "%s: expected '<opcode> <kind>: <note>' in %S" file line))
+    (String.split_on_char '\n' (read_file file))
+
+let lockstep manifest trace program shim load pc sp plant expect_div all known =
+  let m = load_manifest manifest in
+  let plant =
+    match Lockstep.plant_of_string plant with
+    | Some p -> p
+    | None -> die "unknown planted bug %s (none, ult, aux, carry)" plant
+  in
+  let r =
+    match Observe.run ~frames:true m (open_trace trace) with
+    | Error l -> die "%s" (String.concat "\n" l)
+    | Ok r -> r
+  in
+  let times = Hashtbl.create 1024 in
+  List.iter (fun (f : Frame.t) -> Hashtbl.replace times f.n f.time) r.frames;
+  let setup =
+    {
+      Lockstep.memory =
+        [
+          (0, read_file (Filename.concat shim "shim-boot.bin"));
+          (5, read_file (Filename.concat shim "shim-bdos.bin"));
+          (0xfe00, read_file (Filename.concat shim "shim-handler.bin"));
+          (load, read_file program);
+        ];
+      pc;
+      sp;
+      start_regs = None;
+      known = (match known with Some f -> parse_known f | None -> []);
+    }
+  in
+  let rep =
+    Lockstep.run ~plant ~all setup ~time_of:(Hashtbl.find_opt times) (Events.instructions r.events)
+  in
+  Printf.printf
+    "%d instructions agree (%d before %04x skipped, %d compared without registers, %d cut-short \
+     fetches left out); model %d T-states%s\n"
+    rep.compared rep.skipped pc rep.partial rep.tail rep.model_tstates
+    (if rep.halted then ", halted" else "");
+  (let seen = Hashtbl.create 4 in
+   List.iter
+     (fun ((d : Lockstep.divergence), note) ->
+       Hashtbl.replace seen (d.what, note)
+         (1 + Option.value (Hashtbl.find_opt seen (d.what, note)) ~default:0))
+     rep.classified;
+   Hashtbl.iter (fun (w, note) n -> Printf.printf "  classified: %d x %s (%s)\n" n w note) seen);
+  if all then begin
+    let counts = Hashtbl.create 8 in
+    List.iter
+      (fun (d : Lockstep.divergence) ->
+        Hashtbl.replace counts d.what (1 + Option.value (Hashtbl.find_opt counts d.what) ~default:0))
+      rep.all;
+    Hashtbl.iter (fun k v -> Printf.printf "  %-14s %d\n" k v) counts;
+    List.iteri (fun n d -> if n < 12 then Format.printf "  %a@." Lockstep.pp_divergence d) rep.all
+  end;
+  match (rep.divergence, expect_div) with
+  | None, false -> ()
+  | Some d, false ->
+      Format.eprintf "DIVERGENCE %a@." Lockstep.pp_divergence d;
+      exit 1
+  | Some d, true -> Format.printf "divergence caught as expected: %a@." Lockstep.pp_divergence d
+  | None, true ->
+      prerr_endline "no divergence, but one was expected";
+      exit 1
+
+let lockstep_cmd =
+  Cmd.v
+    (Cmd.info "lockstep"
+       ~doc:"Compare the observed instructions with Rivet's behavioural model, one by one.")
+    Term.(
+      const lockstep $ manifest_arg $ trace_arg
+      $ Arg.(
+          required
+          & opt (some file) None
+          & info [ "program" ] ~docv:"COM" ~doc:"The CP/M program that ran.")
+      $ Arg.(
+          required
+          & opt (some dir) None
+          & info [ "shim" ] ~docv:"DIR"
+              ~doc:"Directory with shim-boot.bin, shim-bdos.bin and shim-handler.bin.")
+      $ Arg.(value & opt int 0x100 & info [ "load" ] ~docv:"ADDR" ~doc:"Load address.")
+      $ Arg.(value & opt int 0x100 & info [ "pc" ] ~docv:"ADDR" ~doc:"First instruction compared.")
+      $ Arg.(value & opt int 0xfe00 & info [ "sp" ] ~docv:"ADDR" ~doc:"Initial SP.")
+      $ Arg.(
+          value & opt string "none"
+          & info [ "plant" ] ~docv:"BUG" ~doc:"Plant a model bug (ult, aux, carry).")
+      $ Arg.(
+          value & flag & info [ "expect-divergence" ] ~doc:"Succeed only if a divergence is found.")
+      $ Arg.(
+          value & flag
+          & info [ "all" ] ~doc:"Do not stop at the first divergence; count them by kind.")
+      $ Arg.(
+          value
+          & opt (some file) None
+          & info [ "known" ] ~docv:"FILE"
+              ~doc:"Classified differences, one '<opcode> <kind>: <note>' per line."))
+
+let frames manifest trace from until =
+  let m = load_manifest manifest in
+  let r =
+    match Observe.run ~frames:true m (open_trace trace) with
+    | Error l -> die "%s" (String.concat "\n" l)
+    | Ok r -> r
+  in
+  let h w = function None -> String.make w '~' | Some v -> Printf.sprintf "%0*x" w v in
+  print_endline "# n a do di sync dbin wr_n wait | acc bc de hl sp pc wz flags(zspcac)";
+  List.iter
+    (fun (f : Frame.t) ->
+      if f.n >= from && f.n <= until then begin
+        let b = function None -> "~" | Some true -> "1" | Some false -> "0" in
+        Printf.printf "%d %s %s %s %s %s %s %s |" f.n (h 4 f.a) (h 2 f.dout) (h 2 f.din) (b f.sync)
+          (b f.dbin) (b f.wr_n) (b f.wait);
+        match f.regs with
+        | Some r ->
+            Printf.printf " %s %s %s %s %s %s %s %s%s%s%s%s%s\n" (h 2 r.acc) (h 4 r.bc) (h 4 r.de)
+              (h 4 r.hl) (h 4 r.sp) (h 4 r.pc) (h 4 r.wz) (h 1 r.z) (h 1 r.s) (h 1 r.p) (h 1 r.c)
+              (h 1 r.ac)
+              (match r.swap with Frame.Fixed -> "" | Frame.Flag x -> " x" ^ h 1 x)
+        | None -> print_newline ()
+      end)
+    r.frames
+
+let frames_cmd =
+  Cmd.v
+    (Cmd.info "frames"
+       ~doc:"Print the T-state samples (pins and registers) of a range, like a K4 trace.")
+    Term.(
+      const frames $ manifest_arg $ trace_arg
+      $ Arg.(value & opt int 0 & info [ "from" ] ~docv:"N")
+      $ Arg.(value & opt int max_int & info [ "to" ] ~docv:"N"))
+
 let replay dir =
   match Export.replay ~dir with
   | Error e -> die "%s" e
@@ -145,4 +295,6 @@ let replay_cmd =
 
 let () =
   exit
-    (Cmd.eval (Cmd.group (Cmd.info "i8080_observe") [ observe_cmd; check_cmd; k4_cmd; replay_cmd ]))
+    (Cmd.eval
+       (Cmd.group (Cmd.info "i8080_observe")
+          [ observe_cmd; check_cmd; k4_cmd; replay_cmd; lockstep_cmd; frames_cmd ]))

@@ -44,6 +44,13 @@ let flags_of ~z ~s ~p ~c ~ac = (s lsl 7) lor (z lsl 6) lor (ac lsl 4) lor (p lsl
 
 let of_frame (r : Frame.regs) =
   let hi = Option.map (fun v -> (v lsr 8) land 0xff) and lo = Option.map (fun v -> v land 0xff) in
+  let de, hl =
+    match r.swap with
+    | Frame.Fixed -> (r.de, r.hl)
+    | Frame.Flag (Some 0) -> (r.hl, r.de)
+    | Frame.Flag (Some _) -> (r.de, r.hl)
+    | Frame.Flag None -> (None, None)
+  in
   let f =
     match (r.z, r.s, r.p, r.c, r.ac) with
     | Some z, Some s, Some p, Some c, Some ac -> Some (flags_of ~z ~s ~p ~c ~ac)
@@ -53,10 +60,10 @@ let of_frame (r : Frame.regs) =
     a = r.acc;
     b = hi r.bc;
     c = lo r.bc;
-    d = hi r.de;
-    e = lo r.de;
-    h = hi r.hl;
-    l = lo r.hl;
+    d = hi de;
+    e = lo de;
+    h = hi hl;
+    l = lo hl;
     f;
     sp = r.sp;
     pc = r.pc;

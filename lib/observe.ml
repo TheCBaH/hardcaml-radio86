@@ -90,6 +90,10 @@ let run ?(frames = false) (m : Manifest.t) tr =
                     p = i "p";
                     c = i "c";
                     ac = i "ac";
+                    swap =
+                      (if List.exists (fun (s : Manifest.signal) -> s.name = "xchg") regs then
+                         Frame.Flag (i "xchg")
+                       else Frame.Fixed);
                   }
             in
             ( i "a",

@@ -22,7 +22,7 @@ let frame ?(a = None) ?(dout = None) ?(din = None) ?(sync = Some false) ?(dbin =
     regs = None;
   }
 
-let run frames = print (Pipeline.run Manifest.Next_fetch (List.to_seq frames))
+let run frames = print (Pipeline.run Manifest.Fetch_accepted (List.to_seq frames))
 
 let%expect_test "unknown data is reported, never read as zero" =
   run
@@ -111,7 +111,7 @@ let%expect_test "stack and I/O cycles" =
     xfer fetch       a=0000 d=db T0-2 waits=0
     xfer mem_read    a=0001 d=05 T4-6 waits=0
     xfer io_read     a=0505 d=99 T7-9 waits=0
-    instr #0 0000: in 0x05 [db 05] T0-9 10T regs=unobserved
     abandoned fetch       a=0002 d=~ T10-10 waits=0: end of the capture
+    instr #0 0000: in 0x05 [db 05] T0-9 10T regs=unobserved INCOMPLETE: end of the capture
     instr #1 0002: ? [] T10-10 1T regs=unobserved INCOMPLETE: fetch cycle at T-state 10 abandoned: end of the capture
     end tstates=11 first_t1=0 |}]

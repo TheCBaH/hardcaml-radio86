@@ -27,10 +27,10 @@ type open_instr = {
   mutable o_bytes : int list;  (** Reversed. *)
   mutable o_len : int option;
   mutable o_acc : Bus.cycle list;  (** Reversed. *)
-  o_before : Regs.t option;
+  mutable o_before : Regs.t option;
   mutable o_last : int;
   mutable o_bad : string;  (** Non-empty: the instruction cannot be complete. *)
-  mutable o_after_last : Regs.t option;  (** Registers at the last T-state of the last cycle. *)
+  mutable o_snapped : bool;  (** [o_before] has been read. *)
 }
 
 type halt_window = { h_first : int; mutable h_samples : (int * int option * int option) list }
@@ -39,14 +39,12 @@ type state = {
   rule : Manifest.snapshot;
   idx : int;
   cur : open_instr option;
+  pending : (open_instr * int) option;
+      (** The previous instruction, closed when the next fetch's registers are read, with its index. *)
   halt : halt_window option;
-  last_regs : Regs.t option;
-  prev_regs : Regs.t option;  (** Registers of the previous frame. *)
-  prev_n : int;
 }
 
-let init rule =
-  { rule; idx = 0; cur = None; halt = None; last_regs = None; prev_regs = None; prev_n = -1 }
+let init rule = { rule; idx = 0; cur = None; pending = None; halt = None }
 
 let describe bytes ~origin =
   match bytes with
@@ -81,7 +79,7 @@ let close idx o ~after ~complete ~why =
     pc = o.o_pc;
     bytes;
     expected_len;
-    text = (if complete then text else text);
+    text;
     first = o.o_first;
     last = o.o_last;
     tstates = o.o_last - o.o_first + 1;
@@ -97,16 +95,20 @@ let regs_of (f : Frame.t) = Option.map Regs.of_frame f.regs
 let step st (f : Frame.t) (outs : Bus.out list) =
   let res = ref [] in
   let emit o = res := o :: !res in
-  let cur = ref st.cur
-  and idx = ref st.idx
-  and halt = ref st.halt
-  and last_regs = ref st.last_regs in
+  let cur = ref st.cur and idx = ref st.idx and halt = ref st.halt and pending = ref st.pending in
   let now = regs_of f in
   let flush_halt () =
     Option.iter
       (fun h -> emit (Halt_evidence { first = h.h_first; samples = List.rev h.h_samples }))
       !halt;
     halt := None
+  in
+  let close_pending ~after ~why =
+    Option.iter
+      (fun (o, i) ->
+        emit (Instruction (close i o ~after ~complete:(after <> None || why = "") ~why)))
+      !pending;
+    pending := None
   in
   let finish_cur ~after ~complete ~why =
     Option.iter
@@ -116,32 +118,58 @@ let step st (f : Frame.t) (outs : Bus.out list) =
       !cur;
     cur := None
   in
-  (* registers for [last_tstate]: those of the frame that ended the last cycle *)
-  let regs_at n = if n = f.n then now else if n = st.prev_n then st.prev_regs else None in
+  (* the registers as the next instruction's fetch finds them: PC is the fetch address *)
+  let snapshot ~addr ~advanced =
+    match now with
+    | None -> None
+    | Some r ->
+        let rg = r in
+        let pc =
+          match (addr, rg.pc) with
+          | Some a, Some p ->
+              if advanced && p <> (a + 1) land 0xffff then
+                emit
+                  (Note
+                     {
+                       at = f.n;
+                       msg =
+                         Printf.sprintf "internal PC %04x is not the fetch address %04x plus one" p
+                           a;
+                     });
+              Some a
+          | Some a, None -> Some a
+          | None, p -> p
+        in
+        Some { rg with pc }
+  in
   List.iter
     (fun (o : Bus.out) ->
       match o with
       | Bus.Reset _ ->
           flush_halt ();
-          finish_cur ~after:None ~complete:false ~why:"reset";
-          last_regs := None
+          close_pending ~after:None ~why:"reset before the next fetch";
+          finish_cur ~after:None ~complete:false ~why:"reset"
       | Bus.Note _ -> ()
-      | Bus.Start { kind = (Bus.Fetch | Bus.Int_ack) as k; addr; at; epoch; status; _ } ->
+      | Bus.Start { kind = Bus.Fetch | Bus.Int_ack; addr; at; epoch; _ } ->
           flush_halt ();
-          ignore status;
-          let after =
-            match st.rule with
-            | Manifest.Next_fetch -> now
-            | Manifest.Last_tstate -> ( match !cur with Some o -> o.o_after_last | None -> None)
-          in
-          finish_cur ~after ~complete:true ~why:"";
-          let before =
-            match st.rule with
-            | Manifest.Next_fetch -> now
-            | Manifest.Last_tstate -> ( match after with Some _ -> after | None -> now)
-          in
-          last_regs := before;
-          ignore k;
+          close_pending ~after:None ~why:"the next fetch did not finish";
+          (match !cur with
+          | Some prev ->
+              prev.o_last <- at - 1;
+              if st.rule = Manifest.Fetch_t1 then begin
+                (* too early on vm80a (see Manifest); kept to show it *)
+                let snap = snapshot ~addr ~advanced:false in
+                emit (Instruction (close !idx prev ~after:snap ~complete:true ~why:""));
+                incr idx;
+                cur := None
+              end
+              else begin
+                pending := Some (prev, !idx);
+                incr idx;
+                cur := None
+              end
+          | None -> ());
+          let snapped = st.rule = Manifest.Fetch_t1 in
           cur :=
             Some
               {
@@ -151,10 +179,10 @@ let step st (f : Frame.t) (outs : Bus.out list) =
                 o_bytes = [];
                 o_len = None;
                 o_acc = [];
-                o_before = before;
+                o_before = (if snapped then snapshot ~addr ~advanced:false else None);
                 o_last = at;
                 o_bad = "";
-                o_after_last = None;
+                o_snapped = snapped;
               }
       | Bus.Start { kind = Bus.Halt_ack; at; _ } -> halt := Some { h_first = at; h_samples = [] }
       | Bus.Start _ -> ()
@@ -170,15 +198,22 @@ let step st (f : Frame.t) (outs : Bus.out list) =
           | Some o -> (
               o.o_acc <- c :: o.o_acc;
               o.o_last <- c.last;
-              o.o_after_last <- regs_at c.last;
               match c.kind with
-              | Bus.Halt_ack -> finish_cur ~after:now ~complete:true ~why:""
-              | Bus.Fetch | Bus.Int_ack -> (
-                  match c.data with
+              | Bus.Halt_ack ->
+                  close_pending ~after:None ~why:"the next fetch did not finish";
+                  finish_cur ~after:(snapshot ~addr:None ~advanced:false) ~complete:true ~why:""
+              | Bus.Fetch | Bus.Int_ack ->
+                  (match c.data with
                   | Some b ->
                       o.o_bytes <- [ b ];
                       o.o_len <- Some I8080_ops.timings.(b land 0xff).I8080_ops.length
-                  | None -> o.o_bad <- "the opcode byte is unknown")
+                  | None -> o.o_bad <- "the opcode byte is unknown");
+                  if not o.o_snapped then begin
+                    o.o_snapped <- true;
+                    let snap = snapshot ~addr:c.addr ~advanced:(c.kind = Bus.Fetch) in
+                    o.o_before <- snap;
+                    close_pending ~after:snap ~why:""
+                  end
               | Bus.Mem_read | Bus.Other -> (
                   match (o.o_len, c.data) with
                   | Some len, Some b when List.length o.o_bytes < len -> o.o_bytes <- b :: o.o_bytes
@@ -186,30 +221,21 @@ let step st (f : Frame.t) (outs : Bus.out list) =
                       o.o_bad <- "an operand byte is unknown"
                   | _ -> ())
               | _ -> ()))
-      | Bus.Abandoned { cycle; why } ->
-          Option.iter
-            (fun o ->
+      | Bus.Abandoned { cycle; why } -> (
+          match !cur with
+          | Some o ->
               o.o_acc <- cycle :: o.o_acc;
               if o.o_bad = "" then
                 o.o_bad <-
                   Printf.sprintf "%s cycle at T-state %d abandoned: %s" (Bus.kind_name cycle.kind)
-                    cycle.first why)
-            !cur)
+                    cycle.first why
+          | None -> ()))
     outs;
   (match !halt with
   | Some h when List.length h.h_samples < 6 ->
       h.h_samples <- (f.n, f.a, Option.bind f.regs (fun r -> r.Frame.pc)) :: h.h_samples
   | _ -> ());
-  ( {
-      st with
-      idx = !idx;
-      cur = !cur;
-      halt = !halt;
-      last_regs = !last_regs;
-      prev_regs = now;
-      prev_n = f.n;
-    },
-    List.rev !res )
+  ({ st with idx = !idx; cur = !cur; pending = !pending; halt = !halt }, List.rev !res)
 
 let finish st (outs : Bus.out list) =
   let res = ref [] in
@@ -229,6 +255,10 @@ let finish st (outs : Bus.out list) =
   Option.iter
     (fun h -> res := Halt_evidence { first = h.h_first; samples = List.rev h.h_samples } :: !res)
     st.halt;
+  Option.iter
+    (fun (o, i) ->
+      res := Instruction (close i o ~after:None ~complete:false ~why:"end of the capture") :: !res)
+    st.pending;
   Option.iter
     (fun o ->
       res :=

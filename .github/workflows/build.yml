@@ -49,5 +49,10 @@ jobs:
         uses: actions/upload-artifact@v5
         with:
           name: observation-${{ matrix.os }}
-          path: out/
+          path: |
+            out/*.export
+            out/*.jsonl
+            out/*.txt
+            out/*.perfetto.json
+            out/pre/
           if-no-files-found: warn

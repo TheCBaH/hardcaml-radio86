@@ -22,8 +22,13 @@ type signal = {
 }
 
 type snapshot =
-  | Next_fetch  (** Registers are read in the [T1] sample of the next instruction's first cycle. *)
-  | Last_tstate  (** Registers are read in the last T-state of the instruction's last cycle. *)
+  | Fetch_t1
+      (** The registers after an instruction are read in the [T1] sample of the next instruction's fetch. On
+          vm80a that is too early: a jump has not loaded [PC] and an ALU result has not reached the flags. *)
+  | Fetch_accepted
+      (** They are read in the sample that accepts the next opcode (T3 without waits), where vm80a has
+          written back the previous instruction. [PC] is then the fetch address plus one; the model reports
+          the address on the bus. *)
 
 type trace_ref = { file : string; format : string; sha256 : string; bytes : int }
 
@@ -45,6 +50,7 @@ val pin_names : (string * int) list
 
 val register_names : (string * int * bool) list
 (** The internal registers a manifest may declare, with their widths and whether a snapshot needs them.
+    [xchg] is the register file's DE/HL exchange state, which a CPU that keeps one (vm80a) must declare.
     Declaring none is allowed (registers are then reported as unobserved); declaring some but not all of the
     required ones is an error. *)
 

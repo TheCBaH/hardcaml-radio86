@@ -11,7 +11,9 @@ type t = {
   expected_len : int option;  (** From Rivet's descriptor table. *)
   text : string option;  (** Rivet's canonical text; [None] when the bytes are incomplete. *)
   first : int;
-  last : int;  (** The last T-state of its last cycle (the first [WAIT] sample for [HLT]). *)
+  last : int;
+      (** The T-state before the next instruction's [T1] (internal T-states included), or the first [WAIT]
+          sample for [HLT]; the last transfer's T-state when no next instruction began. *)
   tstates : int;
   accesses : Bus.cycle list;  (** Every accepted transfer, in bus order. *)
   before : Regs.t option;

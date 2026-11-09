@@ -2,6 +2,13 @@
     declares them, the internal registers. A value that is not known (X or Z in the trace, or masked in a
     hand-written trace) is [None]; it is never replaced by zero. *)
 
+type swap =
+  | Fixed
+      (** The manifest declares no exchange state: [de] and [hl] are the architectural pairs. *)
+  | Flag of int option
+      (** The CPU keeps which physical pair is [DE] and which is [HL] (vm80a: [XCHG] flips a bit, it moves
+          no data); [None] when that bit is unknown. *)
+
 type regs = {
   acc : int option;
   bc : int option;
@@ -15,6 +22,7 @@ type regs = {
   p : int option;
   c : int option;
   ac : int option;
+  swap : swap;
 }
 
 type t = {

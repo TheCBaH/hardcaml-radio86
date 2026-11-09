@@ -1,3 +1,5 @@
+type swap = Fixed | Flag of int option
+
 type regs = {
   acc : int option;
   bc : int option;
@@ -11,6 +13,7 @@ type regs = {
   p : int option;
   c : int option;
   ac : int option;
+  swap : swap;
 }
 
 type t = {
@@ -46,6 +49,7 @@ let no_regs =
     p = None;
     c = None;
     ac = None;
+    swap = Fixed;
   }
 
 let pp ppf f =

@@ -2,7 +2,7 @@ type rule = After_rising | After_falling | Before_rising
 type clock = { path : string list; rule : rule; enable : string list option }
 type kind = Pin | Register
 type signal = { name : string; path : string list; width : int; kind : kind }
-type snapshot = Next_fetch | Last_tstate
+type snapshot = Fetch_t1 | Fetch_accepted
 type trace_ref = { file : string; format : string; sha256 : string; bytes : int }
 
 type t = {
@@ -49,6 +49,7 @@ let register_names =
     ("p", 1, true);
     ("c", 1, true);
     ("ac", 1, true);
+    ("xchg", 1, false);
   ]
 
 let find t name = List.find_opt (fun s -> s.name = name) t.signals
@@ -111,7 +112,7 @@ let rule_c =
 let kind_c = Jsont.enum ~kind:"signal kind" [ ("pin", Pin); ("register", Register) ]
 
 let snapshot_c =
-  Jsont.enum ~kind:"snapshot rule" [ ("next_fetch", Next_fetch); ("last_tstate", Last_tstate) ]
+  Jsont.enum ~kind:"snapshot rule" [ ("fetch_t1", Fetch_t1); ("fetch_accepted", Fetch_accepted) ]
 
 let enable_c = obj "enable" Fun.id |> Jsont.Object.mem "path" path_c ~enc:Fun.id |> finish
 

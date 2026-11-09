@@ -42,9 +42,10 @@ type state = {
   pending : (open_instr * int) option;
       (** The previous instruction, closed when the next fetch's registers are read, with its index. *)
   halt : halt_window option;
+  recent : (int * int option * int option) list;  (** The last few samples, newest first. *)
 }
 
-let init rule = { rule; idx = 0; cur = None; pending = None; halt = None }
+let init rule = { rule; idx = 0; cur = None; pending = None; halt = None; recent = [] }
 
 let describe bytes ~origin =
   match bytes with
@@ -184,7 +185,8 @@ let step st (f : Frame.t) (outs : Bus.out list) =
                 o_bad = "";
                 o_snapped = snapped;
               }
-      | Bus.Start { kind = Bus.Halt_ack; at; _ } -> halt := Some { h_first = at; h_samples = [] }
+      | Bus.Start { kind = Bus.Halt_ack; at; _ } ->
+          halt := Some { h_first = at; h_samples = st.recent }
       | Bus.Start _ -> ()
       | Bus.Done c -> (
           match !cur with
@@ -231,11 +233,12 @@ let step st (f : Frame.t) (outs : Bus.out list) =
                     cycle.first why
           | None -> ()))
     outs;
+  let sample = (f.n, f.a, Option.bind f.regs (fun r -> r.Frame.pc)) in
   (match !halt with
-  | Some h when List.length h.h_samples < 6 ->
-      h.h_samples <- (f.n, f.a, Option.bind f.regs (fun r -> r.Frame.pc)) :: h.h_samples
+  | Some h when List.length h.h_samples < 12 -> h.h_samples <- sample :: h.h_samples
   | _ -> ());
-  ({ st with idx = !idx; cur = !cur; pending = !pending; halt = !halt }, List.rev !res)
+  let recent = sample :: List.filteri (fun i _ -> i < 5) st.recent in
+  ({ st with idx = !idx; cur = !cur; pending = !pending; halt = !halt; recent }, List.rev !res)
 
 let finish st (outs : Bus.out list) =
   let res = ref [] in

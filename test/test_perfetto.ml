@@ -28,7 +28,7 @@ let%expect_test "the Perfetto lanes of the hand trace are JSON" =
     {"ph":"X","pid":1,"tid":1,"ts":7,"dur":13,"name":"sta 0x2000","args":{"pc":"0002","bytes":"32 00 20","complete":"true"}},
     {"ph":"X","pid":1,"tid":2,"ts":24,"dur":3,"name":"halt_ack ~","args":{"waits":"0","seq":"7"}},
     {"ph":"X","pid":1,"tid":1,"ts":20,"dur":7,"name":"hlt","args":{"pc":"0005","bytes":"76","complete":"true"}},
-    {"ph":"i","s":"t","pid":1,"tid":3,"ts":24,"name":"halt cycle","args":{"n24":"a=~ pc=~","n25":"a=~ pc=~","n26":"a=~ pc=~","n27":"a=~ pc=~","n28":"a=~ pc=~"}}
+    {"ph":"i","s":"t","pid":1,"tid":3,"ts":24,"name":"halt cycle","args":{"n18":"a=2000 pc=~","n19":"a=~ pc=~","n20":"a=0005 pc=~","n21":"a=0005 pc=~","n22":"a=0005 pc=~","n23":"a=~ pc=~","n24":"a=~ pc=~","n25":"a=~ pc=~","n26":"a=~ pc=~","n27":"a=~ pc=~","n28":"a=~ pc=~"}}
     ]} |}]
 
 let%expect_test "the JSON lines of the hand trace" =
@@ -49,5 +49,5 @@ let%expect_test "the JSON lines of the hand trace" =
     {"ev":"instr","idx":1,"epoch":0,"pc":"0x0002","bytes":"32 00 20","text":"sta 0x2000","first":7,"last":21,"tstates":15,"transfers":[2,3,4,5],"before":null,"after":null,"changes":null,"complete":true,"why":null}
     {"ev":"transfer","epoch":0,"seq":7,"kind":"halt_ack","status":"0x8a","addr":null,"data":null,"first":26,"last":28,"waits":0}
     {"ev":"instr","idx":2,"epoch":0,"pc":"0x0005","bytes":"76","text":"hlt","first":22,"last":28,"tstates":7,"transfers":[6,7],"before":null,"after":null,"changes":null,"complete":true,"why":null}
-    {"ev":"halt_evidence","first":26,"samples":[{"n":26,"a":null,"pc":null},{"n":27,"a":null,"pc":null},{"n":28,"a":null,"pc":null},{"n":29,"a":null,"pc":null},{"n":30,"a":null,"pc":null}]}
+    {"ev":"halt_evidence","first":26,"samples":[{"n":20,"a":"0x2000","pc":null},{"n":21,"a":null,"pc":null},{"n":22,"a":"0x0005","pc":null},{"n":23,"a":"0x0005","pc":null},{"n":24,"a":"0x0005","pc":null},{"n":25,"a":null,"pc":null},{"n":26,"a":null,"pc":null},{"n":27,"a":null,"pc":null},{"n":28,"a":null,"pc":null},{"n":29,"a":null,"pc":null},{"n":30,"a":null,"pc":null}]}
     {"ev":"end","tstates":31,"first_t1":0} |}]

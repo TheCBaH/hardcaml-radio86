@@ -25,7 +25,8 @@ type t = {
 type out =
   | Instruction of t
   | Halt_evidence of { first : int; samples : (int * int option * int option) list }
-      (** The halt cycle's samples: T-state, [A] pin and the internal [PC]; evidence only. *)
+      (** The samples around the halt cycle (the five before it, which include the [HLT] fetch, and the cycle
+          itself): T-state, [A] pin and the internal [PC]. Evidence only. *)
   | Note of { at : int; msg : string }
 
 type state

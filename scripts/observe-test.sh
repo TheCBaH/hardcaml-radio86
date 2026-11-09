@@ -21,6 +21,7 @@ for id in mvi-sta-hlt mvi-sta-hlt-wait2; do
         --jsonl "$out/$id.jsonl" --text "$out/$id.txt" --perfetto "$out/$id.perfetto.json" \
         --export "$out/$id.export"
     $obs k4 --manifest "$manifest" --hand "$rel/fixtures/$id.trace" --against "$out/$id.fst"
+    $obs pins --manifest "$manifest" --trace "$out/$id.fst" --pin-trace "$out/$id.trace"
     $obs replay "$out/$id.export"
     cmp "$out/$id.jsonl" "$here/test/golden/$id.jsonl"
 done
@@ -38,6 +39,7 @@ echo "observe-test: the manifest naming a missing path is refused: $(head -1 "$o
 pre=$out/pre
 mkdir -p "$pre"
 python3 -I "$rel/vm80a.py" com "$diag/8080PRE.COM" "$pre" --trace -- "$rel/bin/vm80a_sim" "+fst=$pre/8080PRE.fst" > "$pre/vm.log" 2>&1
+$obs pins --manifest "$manifest" --trace "$pre/8080PRE.fst" --pin-trace "$pre/8080PRE.trace" --from-pc 0x100
 $obs observe --manifest "$manifest" --trace "$pre/8080PRE.fst" --export "$out/8080PRE.export"
 $obs replay "$out/8080PRE.export"
 $obs lockstep --known "$here/test/lockstep-known.txt" --manifest "$manifest" --trace "$pre/8080PRE.fst" \

@@ -278,6 +278,82 @@ let frames_cmd =
       $ Arg.(value & opt int 0 & info [ "from" ] ~docv:"N")
       $ Arg.(value & opt int max_int & info [ "to" ] ~docv:"N"))
 
+(* Every T-state sample of the FST against the pin trace the harness wrote for the same run. *)
+let pins manifest trace pin_trace from_pc =
+  let m = load_manifest manifest in
+  let r =
+    match Observe.run ~frames:true m (open_trace trace) with
+    | Error l -> die "%s" (String.concat "\n" l)
+    | Ok r -> r
+  in
+  let rows =
+    match K4.parse (read_file pin_trace) with Ok f -> f | Error e -> die "%s: %s" pin_trace e
+  in
+  let start =
+    List.find_map
+      (function
+        | Events.Bus (Bus.Start { kind = Bus.Fetch; addr; at; _ })
+          when from_pc = None || addr = from_pc ->
+            Some at
+        | _ -> None)
+      r.events
+  in
+  let start =
+    match start with Some n -> n | None -> die "%s: no instruction fetch to anchor on" trace
+  in
+  let frames = List.filter (fun (f : Frame.t) -> f.n >= start) r.frames in
+  let bad = ref [] in
+  let add fmt = Printf.ksprintf (fun s -> if List.length !bad < 20 then bad := s :: !bad) fmt in
+  if List.length frames <> List.length rows then
+    add "%d samples in the waveform from T%d, %d rows in %s" (List.length frames) start
+      (List.length rows) pin_trace;
+  List.iter2
+    (fun (f : Frame.t) (row : Frame.t) ->
+      let cmp name x y =
+        match (x, y) with
+        | Some x, Some y when x <> y -> add "n=%d %s: waveform %x, harness %x" row.n name x y
+        | None, Some _ ->
+            add "n=%d %s: unknown in the waveform, %x in the harness trace" row.n name
+              (Option.get y)
+        | _ -> () (* the harness writes zz for a bus nothing drives *)
+      in
+      let cmpb name x y = cmp name (Option.map Bool.to_int x) (Option.map Bool.to_int y) in
+      cmp "a" f.a row.a;
+      cmp "do" f.dout row.dout;
+      (* the harness writes the byte it means to drive from T2; the pin carries it from the sample that ends the read *)
+      if row.dbin = Some false then cmp "di" f.din row.din;
+      cmpb "sync" f.sync row.sync;
+      cmpb "dbin" f.dbin row.dbin;
+      cmpb "wr_n" f.wr_n row.wr_n;
+      cmpb "wait" f.wait row.wait;
+      cmpb "hlda" f.hlda row.hlda;
+      cmpb "inte" f.inte row.inte;
+      cmpb "ready" f.ready row.ready;
+      cmpb "hold" f.hold row.hold;
+      cmpb "int" f.int_ row.int_;
+      cmpb "reset" f.reset row.reset)
+    (List.filteri (fun i _ -> i < List.length rows) frames)
+    (List.filteri (fun i _ -> i < List.length frames) rows);
+  if !bad = [] then
+    Printf.printf "%s: %d T-state samples from T%d equal the harness pin trace %s\n" trace
+      (List.length rows) start pin_trace
+  else begin
+    List.iter prerr_endline (List.rev !bad);
+    exit 1
+  end
+
+let pins_cmd =
+  Cmd.v
+    (Cmd.info "pins"
+       ~doc:"Compare every sample of a waveform with the pin trace the harness wrote for the run.")
+    Term.(
+      const pins $ manifest_arg $ trace_arg
+      $ Arg.(required & opt (some file) None & info [ "pin-trace" ] ~docv:"FILE")
+      $ Arg.(
+          value
+          & opt (some int) None
+          & info [ "from-pc" ] ~docv:"ADDR" ~doc:"Anchor on the first fetch at this address."))
+
 let replay dir =
   match Export.replay ~dir with
   | Error e -> die "%s" e
@@ -297,4 +373,4 @@ let () =
   exit
     (Cmd.eval
        (Cmd.group (Cmd.info "i8080_observe")
-          [ observe_cmd; check_cmd; k4_cmd; replay_cmd; lockstep_cmd; frames_cmd ]))
+          [ observe_cmd; check_cmd; k4_cmd; replay_cmd; lockstep_cmd; frames_cmd; pins_cmd ]))

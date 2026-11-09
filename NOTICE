@@ -1,0 +1,7 @@
+The vm80a core (1801BM1/vm80a, CC BY 3.0) is not part of this repository. The waveforms it reads come
+from vm80a_sim in the retrocpu-tools release named in scripts/retrocpu.pin, which embeds vm80a
+unmodified and carries its notice and licence text.
+
+hwfrp (TheCBaH/coralview) and Rivet (TheCBaH/rivet) are MIT-licensed dependencies installed as opam pins.
+
+Everything in this repository is under the MIT License in LICENSE.md.

@@ -2,7 +2,7 @@
   "format": "i8080-observation-manifest/1",
   "id": "vm80a-fst",
   "profile": "i8080a/1",
-  "description": "vm80a_sim (release v0.0.2) Verilator FST: the bench pins and the registers of vm80a_core. A T-state is the second pin_clk rising edge (f2 high), sampled after the edge (contracts K2). The register xchg is vm80a's xchg_dh, which is not in the release's promised set: XCHG flips it and r16_de/r16_hl swap meaning.",
+  "description": "vm80a_sim (release v0.0.2) Verilator FST: the bench pins and the registers of vm80a_core. A T-state is the second pin_clk rising edge (f2 high), sampled after the edge (contracts K2). The register xchg is vm80a's xchg_dh, which the release does not promise (it keeps 12 named registers): while it is 0, r16_hl is the architectural DE and r16_de is HL, and XCHG flips it.",
   "clock": {
     "path": [
       "i8080_tb",

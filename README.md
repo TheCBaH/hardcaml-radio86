@@ -29,6 +29,8 @@ i8080_observe lockstep --manifest manifests/vm80a-fst.json --trace pre.fst --pro
 i8080_observe k4       --manifest manifests/vm80a-fst.json --hand mvi-sta-hlt.trace --against run.fst
 ```
 
+The manifest format and what was found reading vm80a are in [docs/manifest.md](docs/manifest.md).
+
 ## Pins, nothing built
 
 - hwfrp (coralview `e78a32b`) and Rivet (`932dcbd`) are opam pins, in `.devcontainer/devcontainer.json`

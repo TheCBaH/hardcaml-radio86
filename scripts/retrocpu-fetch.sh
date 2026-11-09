@@ -26,8 +26,21 @@ for a in $assets; do
     if [ -n "${RETROCPU_ASSETS:-}" ]; then
         cp "$RETROCPU_ASSETS/$name" "$f"
     elif [ ! -f "$f" ]; then
-        curl -fsSL --retry 6 --retry-all-errors --retry-delay 10 -o "$f" \
-            "https://github.com/$RETROCPU_REPO/releases/download/$RETROCPU_TAG/$name"
+        # The releases/download URL answers 504 for some assets for long periods; the API asset URL
+        # does not. Either way the SHA-256 below decides.
+        if ! curl -fsSL --retry 3 --retry-all-errors --retry-delay 5 -o "$f" \
+            "https://github.com/$RETROCPU_REPO/releases/download/$RETROCPU_TAG/$name"; then
+            echo "retrocpu-fetch: $name: download URL failed, using the API asset URL" >&2
+            api=https://api.github.com/repos/$RETROCPU_REPO/releases/tags/$RETROCPU_TAG
+            auth=${GITHUB_TOKEN:+"Authorization: Bearer ${GITHUB_TOKEN:-}"}
+            url=$(curl -fsSL --retry 3 --retry-all-errors ${auth:+-H "$auth"} "$api" |
+                python3 -I -c 'import json,sys
+for a in json.load(sys.stdin)["assets"]:
+    if a["name"] == sys.argv[1]:
+        print(a["url"])' "$name")
+            curl -fsSL --retry 6 --retry-all-errors --retry-delay 10 ${auth:+-H "$auth"} \
+                -H 'Accept: application/octet-stream' -o "$f" "$url"
+        fi
     fi
     got=$(sha256sum "$f" | cut -d' ' -f1)
     if [ "$got" != "$want" ]; then

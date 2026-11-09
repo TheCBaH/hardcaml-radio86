@@ -4,7 +4,7 @@ RETROCPU ?= .retrocpu
 SEEDS ?= 24
 UNITS ?= 150
 
-.PHONY: deps versions build test fmt fmt-check fetch observe-test lockstep-test pin-check ci clean
+.PHONY: deps versions build test fmt fmt-check fetch observe-test rtl-test lockstep-test pin-check ci clean
 
 deps:
 	opam install . --deps-only --with-test -y
@@ -34,6 +34,10 @@ fetch:
 observe-test: build
 	scripts/observe-test.sh "$$(scripts/retrocpu-fetch.sh $(RETROCPU))"
 
+# The Hardcaml core in Cyclesim on the fixtures, read back with hwfrp.
+rtl-test: build
+	scripts/rtl-test.sh "$$(scripts/retrocpu-fetch.sh $(RETROCPU))"
+
 # Rivet's seeded programs (i8080_tool built from the pinned Rivet commit) under vm80a_sim,
 # in lockstep with the model; a planted model bug must be caught.
 lockstep-test: build
@@ -44,7 +48,7 @@ lockstep-test: build
 pin-check:
 	scripts/pin-check.sh
 
-ci: fmt-check build test pin-check observe-test lockstep-test
+ci: fmt-check build test pin-check rtl-test observe-test lockstep-test
 
 clean:
 	$(DUNE) clean

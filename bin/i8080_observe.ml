@@ -354,6 +354,23 @@ let pins_cmd =
           & opt (some int) None
           & info [ "from-pc" ] ~docv:"ADDR" ~doc:"Anchor on the first fetch at this address."))
 
+(* A pin trace against a hand-written one, with the hand trace's masks. *)
+let compare_pins expected actual =
+  let load f = match K4.parse (read_file f) with Ok r -> r | Error e -> die "%s: %s" f e in
+  match K4.compare_pins ~expected:(load expected) ~actual:(load actual) with
+  | [] -> Printf.printf "%s equals %s (masks as written)\n" actual expected
+  | l ->
+      List.iter prerr_endline l;
+      exit 1
+
+let compare_pins_cmd =
+  Cmd.v
+    (Cmd.info "compare-pins" ~doc:"Compare a pin trace with a hand-written one, row by row.")
+    Term.(
+      const compare_pins
+      $ Arg.(required & opt (some file) None & info [ "expected" ] ~docv:"FILE")
+      $ Arg.(required & opt (some file) None & info [ "actual" ] ~docv:"FILE"))
+
 let replay dir =
   match Export.replay ~dir with
   | Error e -> die "%s" e
@@ -373,4 +390,13 @@ let () =
   exit
     (Cmd.eval
        (Cmd.group (Cmd.info "i8080_observe")
-          [ observe_cmd; check_cmd; k4_cmd; replay_cmd; lockstep_cmd; frames_cmd; pins_cmd ]))
+          [
+            observe_cmd;
+            check_cmd;
+            k4_cmd;
+            replay_cmd;
+            lockstep_cmd;
+            frames_cmd;
+            pins_cmd;
+            compare_pins_cmd;
+          ]))

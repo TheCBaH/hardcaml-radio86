@@ -19,14 +19,30 @@ differs, or a name outside the profile is an error that lists every such probe.
 | `snapshot` | Where the registers after an instruction are read. `fetch_accepted`: in the sample that accepts the next opcode (T3 without waits). `fetch_t1` is the next fetch's first T-state, which vm80a has not finished writing back by then. |
 | `trace` | Only in an exported manifest: file, format, SHA-256 and size of the trace the events came from. |
 
+`signals[].valid` (optional): a 1-bit signal that says when this one is driven. A Hardcaml model has no
+tri-state, so its `do` pin always has a value; with `valid` set to `dout_en` the frame says unknown where the
+core drives nothing, as the vm80a trace does with `z`.
+
 `xchg` is for a core that keeps which physical pair is `DE` and which is `HL` (vm80a does: `XCHG`
 flips a bit and moves no data). A manifest without it says `DE` and `HL` are the architectural pairs.
 
-## Adding a CPU
+## The Hardcaml core (`manifests/hardcaml-vcd.json`)
 
-The Hardcaml CPU (goal P) writes its Cyclesim trace with `Vcd.wrap` and a one-cycle sample strobe per
-T-state, and gets its own manifest: the same 13 pin names, its register paths, `clock.enable` set to the
-strobe. `Observe`, `Bus`, `Instr` and `Lockstep` do not change.
+The core's Cyclesim waveform comes from `Hardcaml.Vcd.wrap`. It writes, at the timestamp of the rising edge
+that ends cycle k, `clock=1` together with the **pre-edge** inputs and outputs of cycle k. The values of
+the T-state therefore sit at the edge, not before it:
+
+| Sample rule | What hwfrp reads |
+| --- | --- |
+| `after_rising` with `enable` = `outputs.sample` | The pins and inputs of the T-state that this edge ends. This is the rule of the manifest. |
+| `before_rising` | The values of the previous cycle: the inputs (`ready`, `di`) are one T-state late. K2's remark that `Before_rising` fits a strobe-qualified Cyclesim sample is true for registers updated by the edge, not for what `Vcd.wrap` records. |
+
+The implementation clock is free: with `tick` high every third cycle the events and the JSONL are byte
+identical (the strobe `sample` is the T-state, not the cycle). Pins are registered outputs of the state
+(Moore), so a T-state's pins do not depend on the inputs applied during it; the harness checks this.
+
+Port names that Vcd.wrap would drop: an input called `clock` or `reset` is filtered from the waveform (it
+writes its own synthetic ones), so the RESET pin is `rst_in`.
 
 ## Findings from vm80a (release v0.0.2)
 

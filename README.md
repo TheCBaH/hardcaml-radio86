@@ -31,6 +31,31 @@ i8080_observe k4       --manifest manifests/vm80a-fst.json --hand mvi-sta-hlt.tr
 
 The manifest format and what was found reading vm80a are in [docs/manifest.md](docs/manifest.md).
 
+## The Hardcaml core (P1-P3)
+
+`i8080_rtl` (library) and `i8080_rtl_run` (command): a skeleton of the 8080 in Hardcaml v0.17.1 that does
+reset, fetch, `MVI A`, `STA`, `HLT` and `READY` waits. Every other opcode, and `HOLD` or `INT`, stops the core
+in a fault state with a `trap_cause`; nothing is silently ignored. One enabled cycle is one T-state (`tick`),
+the pins are a function of the state only, and the observation ports (`sample`, `acc`, `bc`.. `pc`, `wz`, the
+flags, `tstate`, `cycle`, `accept`, `opcode`, `trap`) carry the register and control state.
+
+| Module | What it does |
+| --- | --- |
+| `Core` | The datapath and sequencer (`rtl/core.ml`). |
+| `Stimulus` | The K4 stimulus schedule: `ready`, `hold`, `int`, `reset` from a sample or a machine cycle (`m5+1`). `io` and `inta` are refused. |
+| `Harness` | Cyclesim around the core with 64 KiB of RAM: runs a program, counts T-states (K2), records the writes and the K4 pin trace, and writes the `Vcd.wrap` waveform. |
+
+The waveform is read by the same `i8080_observe` as the vm80a traces, with `manifests/hardcaml-vcd.json`:
+the clock is `inputs.clock`, the sample strobe `outputs.sample`, **sampled after the rising edge** (see
+`docs/manifest.md`), and `do` is qualified by `dout_en`. The fixture takes 27 T-states (29 with two waits)
+with one write of `2a` to `2000`.
+
+```sh
+i8080_rtl_run run --hex --image mvi-sta-hlt.run.img --stim mvi-sta-hlt.stim --vcd run.vcd --pin-trace run.trace
+i8080_observe observe --manifest manifests/hardcaml-vcd.json --trace run.vcd --print
+make rtl-test      # both fixtures, the hand traces, a faster clock, export and replay
+```
+
 ## Pins, nothing built
 
 - hwfrp (coralview `e78a32b`) and Rivet (`932dcbd`) are opam pins, in `.devcontainer/devcontainer.json`

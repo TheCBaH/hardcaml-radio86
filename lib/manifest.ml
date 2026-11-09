@@ -1,7 +1,15 @@
 type rule = After_rising | After_falling | Before_rising
 type clock = { path : string list; rule : rule; enable : string list option }
 type kind = Pin | Register
-type signal = { name : string; path : string list; width : int; kind : kind }
+
+type signal = {
+  name : string;
+  path : string list;
+  width : int;
+  kind : kind;
+  valid : string list option;
+}
+
 type snapshot = Fetch_t1 | Fetch_accepted
 type trace_ref = { file : string; format : string; sha256 : string; bytes : int }
 
@@ -70,6 +78,7 @@ let validate t =
       if Hashtbl.mem seen s.name then err "signal %s is declared twice" s.name;
       Hashtbl.replace seen s.name ();
       if s.path = [] then err "signal %s has an empty path" s.name;
+      if s.valid = Some [] then err "signal %s has an empty valid path" s.name;
       let table =
         match s.kind with
         | Pin -> List.map (fun (n, w) -> (n, w)) pin_names
@@ -124,11 +133,12 @@ let clock_c =
   |> finish
 
 let signal_c =
-  obj "signal" (fun name path width kind -> { name; path; width; kind })
+  obj "signal" (fun name path width kind valid -> { name; path; width; kind; valid })
   |> Jsont.Object.mem "name" Jsont.string ~enc:(fun (s : signal) -> s.name)
   |> Jsont.Object.mem "path" path_c ~enc:(fun (s : signal) -> s.path)
   |> Jsont.Object.mem "width" Jsont.int ~enc:(fun (s : signal) -> s.width)
   |> Jsont.Object.mem "kind" kind_c ~enc:(fun (s : signal) -> s.kind)
+  |> Jsont.Object.opt_mem "valid" path_c ~enc:(fun (s : signal) -> s.valid)
   |> finish
 
 let trace_c =

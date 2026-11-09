@@ -1,5 +1,13 @@
 (executable
  (name i8080_observe)
+ (modules :standard \ i8080_rtl_run)
  (public_name i8080_observe)
  (package hardcaml-radio86)
  (libraries i8080_trace cmdliner))
+
+(executable
+ (name i8080_rtl_run)
+ (public_name i8080_rtl_run)
+ (package hardcaml-radio86)
+ (modules i8080_rtl_run)
+ (libraries i8080_rtl cmdliner hardcaml))

@@ -15,6 +15,7 @@ let rule_of = function
   | Manifest.After_falling -> Trace.After_falling
   | Manifest.Before_rising -> Trace.Before_rising
 
+let valid_name (s : Manifest.signal) = s.name ^ ".valid"
 let unbound (req, status) = Format.asprintf "%a" Bind.pp_entry (req, status)
 
 (* every probe is resolved first, so that the error lists all that are missing *)
@@ -41,7 +42,16 @@ let bind_check (m : Manifest.t) tr =
               ignore
                 (Bind.resolve ~purpose:s.name
                    (Bind.root net tr clk ~model:"i8080" ~overrides:[ (s.name, at s.path) ] (at []))
-                   s.name (Bind.Exact s.width))))
+                   s.name (Bind.Exact s.width)));
+          Option.iter
+            (fun v ->
+              let name = valid_name s in
+              try_ (fun () ->
+                  ignore
+                    (Bind.resolve ~purpose:name
+                       (Bind.root net tr clk ~model:"i8080" ~overrides:[ (name, at v) ] (at []))
+                       name (Bind.Exact 1))))
+            s.valid)
         m.signals;
       ignore scope);
   match List.rev !errs with [] -> Ok () | l -> Error l
@@ -58,20 +68,42 @@ let run ?(frames = false) (m : Manifest.t) tr =
         Bind.clock net tr ~model:"i8080" ~purpose:"T-state clock" ~name:"tstate"
           ?enable:(Option.map at m.clock.enable) (rule_of m.clock.rule) (at m.clock.path)
       in
-      let overrides = List.map (fun (s : Manifest.signal) -> (s.name, at s.path)) m.signals in
+      let overrides =
+        List.concat_map
+          (fun (s : Manifest.signal) ->
+            (s.name, at s.path)
+            :: (match s.valid with Some v -> [ (valid_name s, at v) ] | None -> []))
+          m.signals
+      in
       let scope = Bind.root net tr clk ~model:"i8080" ~overrides (at []) in
       let probe (s : Manifest.signal) = Bind.signal ~purpose:s.name scope s.name Bind.logic in
       let pins = List.filter (fun (s : Manifest.signal) -> s.kind = Manifest.Pin) m.signals in
       let regs = List.filter (fun (s : Manifest.signal) -> s.kind = Manifest.Register) m.signals in
+      let with_valid = List.filter (fun (s : Manifest.signal) -> s.valid <> None) m.signals in
+      let valid_sigs =
+        if with_valid = [] then Sig.const clk []
+        else
+          Sig.all
+            (List.map
+               (fun s -> Bind.signal ~purpose:(valid_name s) scope (valid_name s) Bind.logic)
+               with_valid)
+      in
       let pin_sigs = Sig.all (List.map probe pins) in
       let reg_sigs = if regs = [] then Sig.const clk [] else Sig.all (List.map probe regs) in
+      let pin_sigs = Sig.map2 (fun p v -> (p, v)) pin_sigs valid_sigs in
       let frame_sig =
         Sig.map2
-          (fun pl rl ->
+          (fun (pl, vl) rl ->
             let tbl = Hashtbl.create 32 in
             List.iter2 (fun (s : Manifest.signal) l -> Hashtbl.replace tbl s.name l) pins pl;
             List.iter2 (fun (s : Manifest.signal) l -> Hashtbl.replace tbl s.name l) regs rl;
-            let i n = Option.bind (Hashtbl.find_opt tbl n) to_int_opt in
+            List.iter2 (fun s l -> Hashtbl.replace tbl (valid_name s) l) with_valid vl;
+            let driven n =
+              match Hashtbl.find_opt tbl (n ^ ".valid") with
+              | None -> true
+              | Some l -> to_int_opt l = Some 1
+            in
+            let i n = if driven n then Option.bind (Hashtbl.find_opt tbl n) to_int_opt else None in
             let b n = Option.bind (Hashtbl.find_opt tbl n) to_bool_opt in
             let regs_v =
               if regs = [] then None

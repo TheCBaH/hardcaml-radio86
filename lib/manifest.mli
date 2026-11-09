@@ -19,6 +19,9 @@ type signal = {
   path : string list;
   width : int;
   kind : kind;
+  valid : string list option;
+      (** A 1-bit signal that says when this one is driven (a CPU model without tri-state, whose [do] pin
+          always has a value): where it is low or unknown the signal is unknown, never the stale value. *)
 }
 
 type snapshot =

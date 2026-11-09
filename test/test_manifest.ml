@@ -34,13 +34,17 @@ let%expect_test "invalid manifests" =
     (Manifest.validate
        {
          m with
-         signals = { name = "a"; path = [ "x" ]; width = 16; kind = Manifest.Pin } :: m.signals;
+         signals =
+           { name = "a"; path = [ "x" ]; width = 16; kind = Manifest.Pin; valid = None }
+           :: m.signals;
        });
   show
     (Manifest.validate
        {
          m with
-         signals = { name = "q"; path = [ "x" ]; width = 1; kind = Manifest.Register } :: m.signals;
+         signals =
+           { name = "q"; path = [ "x" ]; width = 1; kind = Manifest.Register; valid = None }
+           :: m.signals;
        });
   show (Manifest.validate (pins_only m));
   [%expect

@@ -42,7 +42,7 @@ jobs:
           platform: ${{ matrix.platform }}
       - name: Versions
         run: ${{ steps.container.outputs.exec }} make versions
-      - name: Format, build, unit tests, vm80a observation
+      - name: Format, build, unit tests, Hardcaml core, vm80a observation
         run: ${{ steps.container.outputs.exec }} make ci
       - name: Observation artifacts
         if: always()
@@ -55,4 +55,12 @@ jobs:
             out/*.txt
             out/*.perfetto.json
             out/pre/
+            out/rtl/*.vcd
+            out/rtl/*.pin.trace
+            out/rtl/*.run.txt
+            out/rtl/*.jsonl
+            out/rtl/*.txt
+            out/rtl/*.perfetto.json
+            out/rtl/*.export
+            out/rtl/i8080_core.v
           if-no-files-found: warn

@@ -1,0 +1,5 @@
+(executable
+ (name i8080_observe)
+ (public_name i8080_observe)
+ (package hardcaml-radio86)
+ (libraries i8080_trace cmdliner))

@@ -1,0 +1,259 @@
+{
+  "format": "i8080-observation-manifest/1",
+  "id": "vm80a-fst",
+  "profile": "i8080a/1",
+  "description": "vm80a_sim (release v0.0.2) Verilator FST: the bench pins and the registers of vm80a_core. A T-state is the second pin_clk rising edge (f2 high), sampled after the edge (contracts K2).",
+  "clock": {
+    "path": [
+      "i8080_tb",
+      "clk"
+    ],
+    "rule": "after_rising",
+    "enable": {
+      "path": [
+        "i8080_tb",
+        "f2"
+      ]
+    }
+  },
+  "snapshot": "next_fetch",
+  "signals": [
+    {
+      "name": "a",
+      "path": [
+        "i8080_tb",
+        "pin_a"
+      ],
+      "width": 16,
+      "kind": "pin"
+    },
+    {
+      "name": "do",
+      "path": [
+        "i8080_tb",
+        "pin_dout"
+      ],
+      "width": 8,
+      "kind": "pin"
+    },
+    {
+      "name": "di",
+      "path": [
+        "i8080_tb",
+        "pin_din"
+      ],
+      "width": 8,
+      "kind": "pin"
+    },
+    {
+      "name": "sync",
+      "path": [
+        "i8080_tb",
+        "pin_sync"
+      ],
+      "width": 1,
+      "kind": "pin"
+    },
+    {
+      "name": "dbin",
+      "path": [
+        "i8080_tb",
+        "pin_dbin"
+      ],
+      "width": 1,
+      "kind": "pin"
+    },
+    {
+      "name": "wr_n",
+      "path": [
+        "i8080_tb",
+        "pin_wr_n"
+      ],
+      "width": 1,
+      "kind": "pin"
+    },
+    {
+      "name": "wait",
+      "path": [
+        "i8080_tb",
+        "pin_wait"
+      ],
+      "width": 1,
+      "kind": "pin"
+    },
+    {
+      "name": "hlda",
+      "path": [
+        "i8080_tb",
+        "pin_hlda"
+      ],
+      "width": 1,
+      "kind": "pin"
+    },
+    {
+      "name": "inte",
+      "path": [
+        "i8080_tb",
+        "pin_inte"
+      ],
+      "width": 1,
+      "kind": "pin"
+    },
+    {
+      "name": "ready",
+      "path": [
+        "i8080_tb",
+        "pin_ready"
+      ],
+      "width": 1,
+      "kind": "pin"
+    },
+    {
+      "name": "hold",
+      "path": [
+        "i8080_tb",
+        "pin_hold"
+      ],
+      "width": 1,
+      "kind": "pin"
+    },
+    {
+      "name": "int",
+      "path": [
+        "i8080_tb",
+        "pin_int"
+      ],
+      "width": 1,
+      "kind": "pin"
+    },
+    {
+      "name": "reset",
+      "path": [
+        "i8080_tb",
+        "pin_reset"
+      ],
+      "width": 1,
+      "kind": "pin"
+    },
+    {
+      "name": "acc",
+      "path": [
+        "i8080_tb",
+        "dut",
+        "acc"
+      ],
+      "width": 8,
+      "kind": "register"
+    },
+    {
+      "name": "bc",
+      "path": [
+        "i8080_tb",
+        "dut",
+        "r16_bc"
+      ],
+      "width": 16,
+      "kind": "register"
+    },
+    {
+      "name": "de",
+      "path": [
+        "i8080_tb",
+        "dut",
+        "r16_de"
+      ],
+      "width": 16,
+      "kind": "register"
+    },
+    {
+      "name": "hl",
+      "path": [
+        "i8080_tb",
+        "dut",
+        "r16_hl"
+      ],
+      "width": 16,
+      "kind": "register"
+    },
+    {
+      "name": "sp",
+      "path": [
+        "i8080_tb",
+        "dut",
+        "r16_sp"
+      ],
+      "width": 16,
+      "kind": "register"
+    },
+    {
+      "name": "pc",
+      "path": [
+        "i8080_tb",
+        "dut",
+        "r16_pc"
+      ],
+      "width": 16,
+      "kind": "register"
+    },
+    {
+      "name": "wz",
+      "path": [
+        "i8080_tb",
+        "dut",
+        "r16_wz"
+      ],
+      "width": 16,
+      "kind": "register"
+    },
+    {
+      "name": "z",
+      "path": [
+        "i8080_tb",
+        "dut",
+        "psw_z"
+      ],
+      "width": 1,
+      "kind": "register"
+    },
+    {
+      "name": "s",
+      "path": [
+        "i8080_tb",
+        "dut",
+        "psw_s"
+      ],
+      "width": 1,
+      "kind": "register"
+    },
+    {
+      "name": "p",
+      "path": [
+        "i8080_tb",
+        "dut",
+        "psw_p"
+      ],
+      "width": 1,
+      "kind": "register"
+    },
+    {
+      "name": "c",
+      "path": [
+        "i8080_tb",
+        "dut",
+        "psw_c"
+      ],
+      "width": 1,
+      "kind": "register"
+    },
+    {
+      "name": "ac",
+      "path": [
+        "i8080_tb",
+        "dut",
+        "psw_ac"
+      ],
+      "width": 1,
+      "kind": "register"
+    }
+  ]
+}

@@ -12,24 +12,25 @@ let%expect_test "the Perfetto lanes of the hand trace are JSON" =
   [%expect
     {|
     valid JSON
-    {"traceEvents":[
+    {"displayTimeUnit":"ns","traceEvents":[
     {"ph":"M","pid":1,"name":"process_name","args":{"name":"i8080 vm80a-fst"}},
     {"ph":"M","pid":1,"tid":1,"name":"thread_name","args":{"name":"instructions"}},
     {"ph":"M","pid":1,"tid":2,"name":"thread_name","args":{"name":"bus"}},
     {"ph":"M","pid":1,"tid":3,"name":"thread_name","args":{"name":"control"}},
-    {"ph":"X","pid":1,"tid":2,"ts":0,"dur":3,"name":"fetch 0000=3e","args":{"waits":"0","seq":"0"}},
-    {"ph":"X","pid":1,"tid":2,"ts":4,"dur":3,"name":"mem_read 0001=2a","args":{"waits":"0","seq":"1"}},
-    {"ph":"X","pid":1,"tid":2,"ts":7,"dur":3,"name":"fetch 0002=32","args":{"waits":"0","seq":"2"}},
-    {"ph":"X","pid":1,"tid":1,"ts":0,"dur":7,"name":"mvi a, 0x2a","args":{"pc":"0000","bytes":"3e 2a","complete":"true"}},
-    {"ph":"X","pid":1,"tid":2,"ts":11,"dur":3,"name":"mem_read 0003=00","args":{"waits":"0","seq":"3"}},
-    {"ph":"X","pid":1,"tid":2,"ts":14,"dur":3,"name":"mem_read 0004=20","args":{"waits":"0","seq":"4"}},
-    {"ph":"X","pid":1,"tid":2,"ts":17,"dur":3,"name":"mem_write 2000=2a","args":{"waits":"0","seq":"5"}},
-    {"ph":"X","pid":1,"tid":2,"ts":20,"dur":3,"name":"fetch 0005=76","args":{"waits":"0","seq":"6"}},
-    {"ph":"X","pid":1,"tid":1,"ts":7,"dur":13,"name":"sta 0x2000","args":{"pc":"0002","bytes":"32 00 20","complete":"true"}},
-    {"ph":"X","pid":1,"tid":2,"ts":24,"dur":3,"name":"halt_ack ~","args":{"waits":"0","seq":"7"}},
-    {"ph":"X","pid":1,"tid":1,"ts":20,"dur":7,"name":"hlt","args":{"pc":"0005","bytes":"76","complete":"true"}},
-    {"ph":"i","s":"t","pid":1,"tid":3,"ts":24,"name":"halt cycle","args":{"n18":"a=2000 pc=~","n19":"a=~ pc=~","n20":"a=0005 pc=~","n21":"a=0005 pc=~","n22":"a=0005 pc=~","n23":"a=~ pc=~","n24":"a=~ pc=~","n25":"a=~ pc=~","n26":"a=~ pc=~","n27":"a=~ pc=~","n28":"a=~ pc=~"}}
-    ]} |}]
+    {"ph":"X","pid":1,"tid":2,"name":"fetch 0000=3e","ts":0,"dur":3,"args":{"waits":"0","seq":"0"}},
+    {"ph":"X","pid":1,"tid":2,"name":"mem_read 0001=2a","ts":4,"dur":3,"args":{"waits":"0","seq":"1"}},
+    {"ph":"X","pid":1,"tid":2,"name":"fetch 0002=32","ts":7,"dur":3,"args":{"waits":"0","seq":"2"}},
+    {"ph":"X","pid":1,"tid":1,"name":"mvi a, 0x2a","ts":0,"dur":7,"args":{"pc":"0000","bytes":"3e 2a","complete":"true"}},
+    {"ph":"X","pid":1,"tid":2,"name":"mem_read 0003=00","ts":11,"dur":3,"args":{"waits":"0","seq":"3"}},
+    {"ph":"X","pid":1,"tid":2,"name":"mem_read 0004=20","ts":14,"dur":3,"args":{"waits":"0","seq":"4"}},
+    {"ph":"X","pid":1,"tid":2,"name":"mem_write 2000=2a","ts":17,"dur":3,"args":{"waits":"0","seq":"5"}},
+    {"ph":"X","pid":1,"tid":2,"name":"fetch 0005=76","ts":20,"dur":3,"args":{"waits":"0","seq":"6"}},
+    {"ph":"X","pid":1,"tid":1,"name":"sta 0x2000","ts":7,"dur":13,"args":{"pc":"0002","bytes":"32 00 20","complete":"true"}},
+    {"ph":"X","pid":1,"tid":2,"name":"halt_ack ~","ts":24,"dur":3,"args":{"waits":"0","seq":"7"}},
+    {"ph":"X","pid":1,"tid":1,"name":"hlt","ts":20,"dur":7,"args":{"pc":"0005","bytes":"76","complete":"true"}},
+    {"ph":"i","s":"t","pid":1,"tid":3,"name":"halt cycle","ts":24,"args":{"n18":"a=2000 pc=~","n19":"a=~ pc=~","n20":"a=0005 pc=~","n21":"a=0005 pc=~","n22":"a=0005 pc=~","n23":"a=~ pc=~","n24":"a=~ pc=~","n25":"a=~ pc=~","n26":"a=~ pc=~","n27":"a=~ pc=~","n28":"a=~ pc=~"}}
+    ]}
+    |}]
 
 let%expect_test "the JSON lines of the hand trace" =
   let m = manifest () in

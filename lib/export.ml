@@ -1,29 +1,8 @@
 let jsonl m evs =
-  let b = Buffer.create 4096 in
-  Buffer.add_string b (Events.header m);
-  Buffer.add_char b '\n';
-  List.iter
-    (fun e ->
-      Option.iter
-        (fun l ->
-          Buffer.add_string b l;
-          Buffer.add_char b '\n')
-        (Events.to_json e))
-    evs;
-  Buffer.contents b
+  Hwfrp_sinks.Lines.to_string
+    (Seq.cons (Events.header m) (Seq.filter_map Events.to_json (List.to_seq evs)))
 
-let text evs =
-  let b = Buffer.create 4096 in
-  List.iter
-    (fun e ->
-      Option.iter
-        (fun l ->
-          Buffer.add_string b l;
-          Buffer.add_char b '\n')
-        (Events.to_text e))
-    evs;
-  Buffer.contents b
-
+let text evs = Hwfrp_sinks.Lines.to_string (Seq.filter_map Events.to_text (List.to_seq evs))
 let read f = In_channel.with_open_bin f In_channel.input_all
 let write_file f s = Out_channel.with_open_bin f (fun oc -> Out_channel.output_string oc s)
 let ( // ) = Filename.concat

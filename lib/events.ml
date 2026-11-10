@@ -1,135 +1,102 @@
 type t = Bus of Bus.out | Instr of Instr.out | End of { tstates : int; first_t1 : int option }
 
-(* A small JSON writer: fixed key order, no whitespace. *)
-type j = I of int | S of string | B of bool | N | A of j list | O of (string * j) list
+module J = Hwfrp_sinks.Json
 
-let rec put b = function
-  | I n -> Buffer.add_string b (string_of_int n)
-  | S s ->
-      Buffer.add_char b '"';
-      String.iter
-        (function
-          | '"' -> Buffer.add_string b "\\\""
-          | '\\' -> Buffer.add_string b "\\\\"
-          | '\n' -> Buffer.add_string b "\\n"
-          | c when Char.code c < 0x20 ->
-              Buffer.add_string b (Printf.sprintf "\\u%04x" (Char.code c))
-          | c -> Buffer.add_char b c)
-        s;
-      Buffer.add_char b '"'
-  | B x -> Buffer.add_string b (if x then "true" else "false")
-  | N -> Buffer.add_string b "null"
-  | A l ->
-      Buffer.add_char b '[';
-      List.iteri
-        (fun i x ->
-          if i > 0 then Buffer.add_char b ',';
-          put b x)
-        l;
-      Buffer.add_char b ']'
-  | O l ->
-      Buffer.add_char b '{';
-      List.iteri
-        (fun i (k, x) ->
-          if i > 0 then Buffer.add_char b ',';
-          put b (S k);
-          Buffer.add_char b ':';
-          put b x)
-        l;
-      Buffer.add_char b '}'
-
-let render j =
-  let b = Buffer.create 128 in
-  put b j;
-  Buffer.contents b
-
-let hex w = function None -> N | Some v -> S (Printf.sprintf "0x%0*x" w v)
+let render = J.to_string
+let hex w = function None -> J.Null | Some v -> J.Str (Printf.sprintf "0x%0*x" w v)
 let hexs w = function None -> "~" | Some v -> Printf.sprintf "%0*x" w v
 let width_of = function "sp" | "pc" -> 4 | _ -> 2
 
 let regs_json = function
-  | None -> N
-  | Some r -> O (List.map (fun n -> (n, hex (width_of n) (Regs.get r n))) Regs.names)
+  | None -> J.Null
+  | Some r -> J.Obj (List.map (fun n -> (n, hex (width_of n) (Regs.get r n))) Regs.names)
 
 let cycle_fields (c : Bus.cycle) =
   [
-    ("epoch", I c.epoch);
-    ("seq", I c.seq);
-    ("kind", S (Bus.kind_name c.kind));
+    ("epoch", J.Int c.epoch);
+    ("seq", J.Int c.seq);
+    ("kind", J.Str (Bus.kind_name c.kind));
     ("status", hex 2 c.status);
     ("addr", hex 4 c.addr);
     ("data", hex 2 c.data);
-    ("first", I c.first);
-    ("last", I c.last);
-    ("waits", I c.waits);
+    ("first", J.Int c.first);
+    ("last", J.Int c.last);
+    ("waits", J.Int c.waits);
   ]
 
 let changes_json (i : Instr.t) =
   match (i.before, i.after) with
   | Some b, Some a ->
-      A
+      J.List
         (List.map
            (fun (n, x, y) ->
-             O [ ("reg", S n); ("from", hex (width_of n) x); ("to", hex (width_of n) y) ])
+             J.Obj [ ("reg", J.Str n); ("from", hex (width_of n) x); ("to", hex (width_of n) y) ])
            (Regs.changes b a))
-  | _ -> N
+  | _ -> J.Null
 
 let bytes_text bytes = String.concat " " (List.map (Printf.sprintf "%02x") bytes)
 
 let header (m : Manifest.t) =
-  render (O [ ("format", S "i8080-events/1"); ("manifest", S m.id); ("profile", S m.profile) ])
+  render
+    (J.Obj
+       [
+         ("format", J.Str "i8080-events/1"); ("manifest", J.Str m.id); ("profile", J.Str m.profile);
+       ])
 
 let to_json = function
   | End { tstates; first_t1 } ->
       Some
         (render
-           (O
+           (J.Obj
               [
-                ("ev", S "end");
-                ("tstates", I tstates);
-                ("first_t1", match first_t1 with Some n -> I n | None -> N);
+                ("ev", J.Str "end");
+                ("tstates", J.Int tstates);
+                ("first_t1", match first_t1 with Some n -> J.Int n | None -> J.Null);
               ]))
   | Bus (Bus.Start _) -> None
   | Bus (Bus.Reset { epoch; at }) ->
-      Some (render (O [ ("ev", S "reset"); ("epoch", I epoch); ("at", I at) ]))
-  | Bus (Bus.Done c) -> Some (render (O (("ev", S "transfer") :: cycle_fields c)))
+      Some (render (J.Obj [ ("ev", J.Str "reset"); ("epoch", J.Int epoch); ("at", J.Int at) ]))
+  | Bus (Bus.Done c) -> Some (render (J.Obj (("ev", J.Str "transfer") :: cycle_fields c)))
   | Bus (Bus.Abandoned { cycle; why }) ->
-      Some (render (O ((("ev", S "abandoned") :: cycle_fields cycle) @ [ ("why", S why) ])))
+      Some
+        (render
+           (J.Obj ((("ev", J.Str "abandoned") :: cycle_fields cycle) @ [ ("why", J.Str why) ])))
   | Bus (Bus.Note { at; msg }) | Instr (Instr.Note { at; msg }) ->
-      Some (render (O [ ("ev", S "note"); ("at", I at); ("msg", S msg) ]))
+      Some (render (J.Obj [ ("ev", J.Str "note"); ("at", J.Int at); ("msg", J.Str msg) ]))
   | Instr (Instr.Halt_evidence { first; samples }) ->
       Some
         (render
-           (O
+           (J.Obj
               [
-                ("ev", S "halt_evidence");
-                ("first", I first);
+                ("ev", J.Str "halt_evidence");
+                ("first", J.Int first);
                 ( "samples",
-                  A
+                  J.List
                     (List.map
-                       (fun (n, a, pc) -> O [ ("n", I n); ("a", hex 4 a); ("pc", hex 4 pc) ])
+                       (fun (n, a, pc) ->
+                         J.Obj [ ("n", J.Int n); ("a", hex 4 a); ("pc", hex 4 pc) ])
                        samples) );
               ]))
   | Instr (Instr.Instruction i) ->
       Some
         (render
-           (O
+           (J.Obj
               [
-                ("ev", S "instr");
-                ("idx", I i.idx);
-                ("epoch", I i.epoch);
+                ("ev", J.Str "instr");
+                ("idx", J.Int i.idx);
+                ("epoch", J.Int i.epoch);
                 ("pc", hex 4 i.pc);
-                ("bytes", S (bytes_text i.bytes));
-                ("text", match i.text with Some t -> S t | None -> N);
-                ("first", I i.first);
-                ("last", I i.last);
-                ("tstates", I i.tstates);
-                ("transfers", A (List.map (fun (c : Bus.cycle) -> I c.seq) i.accesses));
+                ("bytes", J.Str (bytes_text i.bytes));
+                ("text", match i.text with Some t -> J.Str t | None -> J.Null);
+                ("first", J.Int i.first);
+                ("last", J.Int i.last);
+                ("tstates", J.Int i.tstates);
+                ("transfers", J.List (List.map (fun (c : Bus.cycle) -> J.Int c.seq) i.accesses));
                 ("before", regs_json i.before);
                 ("after", regs_json i.after);
                 ("changes", changes_json i);
-                ("complete", B i.complete);
-                ("why", if i.complete then N else S i.why);
+                ("complete", J.Bool i.complete);
+                ("why", if i.complete then J.Null else J.Str i.why);
               ]))
 
 let to_text = function

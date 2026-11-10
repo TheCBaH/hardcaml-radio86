@@ -5,6 +5,7 @@
   hwfrp
   hwfrp.native
   hwfrp.sinks
+  ovcd.signals
   ovcd.vcd_types
   jsont
   jsont.bytesrw

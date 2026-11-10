@@ -22,6 +22,25 @@ let value ~width = function
 
 let bit_int = function None -> None | Some b -> Some (if b then 1 else 0)
 
+let reg_value (f : Frame.t) name =
+  match f.regs with
+  | None -> None
+  | Some r -> (
+      match name with
+      | "acc" -> r.acc
+      | "bc" -> r.bc
+      | "de" -> r.de
+      | "hl" -> r.hl
+      | "sp" -> r.sp
+      | "pc" -> r.pc
+      | "wz" -> r.wz
+      | "z" -> r.z
+      | "s" -> r.s
+      | "p" -> r.p
+      | "c" -> r.c
+      | "ac" -> r.ac
+      | n -> failwith ("register " ^ n))
+
 let pin_value (f : Frame.t) = function
   | "a" -> f.a
   | "do" -> f.dout
@@ -39,12 +58,12 @@ let pin_value (f : Frame.t) = function
   | n -> failwith ("pin " ^ n)
 
 (* All signals live in the scope named by the first path component. *)
-let trace ?(drop = []) (m : Manifest.t) frames =
+let trace ?(drop = []) ?(regs = false) (m : Manifest.t) frames =
   let open In_memory in
   Hashtbl.reset ids;
   let sigs =
     List.filter
-      (fun (s : Manifest.signal) -> s.kind = Manifest.Pin && not (List.mem s.name drop))
+      (fun (s : Manifest.signal) -> (s.kind = Manifest.Pin || regs) && not (List.mem s.name drop))
       m.signals
   in
   let leaf (s : Manifest.signal) = List.nth s.path (List.length s.path - 1) in
@@ -77,7 +96,9 @@ let trace ?(drop = []) (m : Manifest.t) frames =
         (fun s ->
           add
             (change ~id:(id_of s.Manifest.name)
-               (value ~width:s.Manifest.width (pin_value f s.Manifest.name))))
+               (value ~width:s.Manifest.width
+                  (if s.Manifest.kind = Manifest.Pin then pin_value f s.Manifest.name
+                   else reg_value f s.Manifest.name))))
         sigs;
       at' 12;
       add (change ~id:"clk" (bit false)))

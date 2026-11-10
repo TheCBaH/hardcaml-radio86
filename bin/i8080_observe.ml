@@ -65,6 +65,13 @@ let check manifest trace =
   | Ok () -> Printf.printf "%s: every probe of %s is in the trace\n" trace m.id
   | Error l ->
       List.iter prerr_endline l;
+      let tr = open_trace trace in
+      let sigs = Discover.signals tr in
+      List.iter
+        (fun (p, f) ->
+          if f <> Discover.Present then
+            Option.iter (Printf.eprintf "  hint: %s\n") (Discover.hint sigs p))
+        (Discover.check m sigs);
       exit 1
 
 let check_cmd =
@@ -386,6 +393,72 @@ let replay_cmd =
     (Cmd.info "replay" ~doc:"Observe an exported trace again and compare the bytes.")
     Term.(const replay $ Arg.(required & pos 0 (some dir) None & info [] ~docv:"DIR"))
 
+let signals_cmd =
+  let run trace like =
+    let sigs = Discover.signals (open_trace trace) in
+    let wanted (s : Vcd_signals.t) =
+      match like with
+      | None -> true
+      | Some sub ->
+          let sub = String.lowercase_ascii sub and p = String.lowercase_ascii s.path in
+          let n = String.length sub in
+          let rec go i = i + n <= String.length p && (String.sub p i n = sub || go (i + 1)) in
+          go 0
+    in
+    Vcd_signals.write stdout (List.to_seq (List.filter wanted sigs))
+  in
+  Cmd.v
+    (Cmd.info "signals"
+       ~doc:"List the declared signals of a VCD or FST as JSON lines (the format of vcd_dump).")
+    Term.(
+      const run $ trace_arg
+      $ Arg.(
+          value
+          & opt (some string) None
+          & info [ "like" ] ~docv:"TEXT" ~doc:"Only signals whose path contains TEXT."))
+
+let discover_cmd =
+  let run manifest trace write =
+    let m = load_manifest manifest in
+    let sigs = Discover.signals (open_trace trace) in
+    let findings = Discover.check m sigs in
+    List.iter
+      (fun ((p : Discover.probe), f) ->
+        match f with
+        | Discover.Present -> Printf.printf "ok       %s\n" p.name
+        | Discover.Moved _ | Discover.Missing ->
+            Printf.printf "%-8s %s\n"
+              (match f with Discover.Moved _ -> "moved" | _ -> "missing")
+              (Option.value (Discover.hint sigs p) ~default:(p.name ^ ": nothing like it")))
+      findings;
+    match (Discover.repath m sigs, write) with
+    | Ok m', Some f ->
+        write_file f (Manifest.to_string m');
+        Printf.printf "wrote %s\n" f
+    | Ok _, None -> ()
+    | Error l, _ ->
+        List.iter prerr_endline l;
+        if write <> None then exit 1
+  in
+  Cmd.v
+    (Cmd.info "discover"
+       ~doc:"Find the probes of a manifest in a trace's declarations; --write re-paths a manifest.")
+    Term.(
+      const run $ manifest_arg $ trace_arg $ out_opt [ "write" ] "Write the re-pathed manifest.")
+
+let trail_cmd =
+  let run manifest trace =
+    let r = observe_trace (load_manifest manifest) trace in
+    let steps = Trail.of_events r.events in
+    List.iter print_endline (Trail.lines steps);
+    List.iter print_endline (Trail.summary (Trail.final steps));
+    List.iter (fun d -> Format.eprintf "%a@." Hwfrp.Diag.pp d) r.diagnostics
+  in
+  Cmd.v
+    (Cmd.info "trail"
+       ~doc:"Print the executed instructions with the registers and memory each one updated.")
+    Term.(const run $ manifest_arg $ trace_arg)
+
 let () =
   exit
     (Cmd.eval
@@ -399,4 +472,7 @@ let () =
             frames_cmd;
             pins_cmd;
             compare_pins_cmd;
+            signals_cmd;
+            discover_cmd;
+            trail_cmd;
           ]))

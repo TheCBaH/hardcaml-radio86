@@ -11,4 +11,8 @@
   i8080_rtl
   i8080_rtl_trace
   hwfrp
+  hwfrp.native
+  ovcd.signals
+  rivet.compute
+  rivet.i8080_sem
   ovcd.vcd_types))

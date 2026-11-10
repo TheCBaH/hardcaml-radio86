@@ -66,4 +66,7 @@ let%expect_test "the trace lacking a pin the manifest names, and a missing clock
     {|
     missing i8080_tb.pin_hold: hold
     missing i8080_tb.pin_int: int
-    missing nope: T-state clock |}]
+    missing nope: T-state clock
+    missing i8080_tb.pin_hold: hold
+    missing i8080_tb.pin_int: int
+    |}]

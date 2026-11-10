@@ -27,6 +27,12 @@ for spec in mvi-sta-hlt:27 mvi-sta-hlt-wait2:29; do
     $obs k4 --manifest "$manifest" --hand "$rel/fixtures/$id.trace" --against "$out/$id.vcd"
     $obs pins --manifest "$manifest" --trace "$out/$id.vcd" --pin-trace "$out/$id.pin.trace"
     $obs replay "$out/$id.export"
+    # the executed instructions and the state they update, and ovcd's declaration list
+    $obs trail --manifest "$manifest" --trace "$out/$id.vcd" > "$out/$id.trail.txt"
+    grep -q '^0002 sta 0x2000 .*mem\[2000\]:?->2a' "$out/$id.trail.txt"
+    grep -qx 'mem 2000: 2a' "$out/$id.trail.txt"
+    $obs signals --trace "$out/$id.vcd" --like wait > "$out/$id.signals.jsonl"
+    grep -q '"width":1' "$out/$id.signals.jsonl"
     # the T-state is the strobe, not the clock cycle: a clock three times faster gives the same events
     $run run --hex --image "$rel/fixtures/$id.run.img" --stim "$rel/fixtures/$id.stim" --tick-every 3 \
         --vcd "$out/$id.x3.vcd" > /dev/null
@@ -49,6 +55,7 @@ if $obs check --manifest "$out/bad-manifest.json" --trace "$out/mvi-sta-hlt.vcd"
     exit 1
 fi
 grep -q 'waitt' "$out/bad-manifest.err"
+grep -q 'hint: wait: nearest by name' "$out/bad-manifest.err"
 $run verilog --output "$out/i8080_core.v"
 grep -q 'module i8080_core' "$out/i8080_core.v"
 echo "rtl-test: ok"

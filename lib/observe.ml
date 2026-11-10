@@ -5,6 +5,7 @@ type result = {
   events : Events.t list;
   frames : Frame.t list;
   tstates : int;
+  enabled : int;
   diagnostics : Diag.t list;
 }
 
@@ -18,43 +19,32 @@ let rule_of = function
 let valid_name (s : Manifest.signal) = s.name ^ ".valid"
 let unbound (req, status) = Format.asprintf "%a" Bind.pp_entry (req, status)
 
-(* every probe is resolved first, so that the error lists all that are missing *)
+let make_clock (m : Manifest.t) tr net =
+  Bind.clock net tr ~model:"i8080" ~purpose:"T-state clock" ~name:"tstate"
+    ?enable:(Option.map at m.clock.enable) (rule_of m.clock.rule) (at m.clock.path)
+
+(* A scope of exactly the manifest's names. *)
+let flat (m : Manifest.t) tr net clk =
+  Bind.flat net tr clk ~model:"i8080"
+    (List.concat_map
+       (fun (s : Manifest.signal) ->
+         (s.name, at s.path)
+         :: (match s.valid with Some v -> [ (valid_name s, at v) ] | None -> []))
+       m.signals)
+
+(* With [collect] every probe that does not resolve is recorded, so the error lists all that are missing. *)
 let bind_check (m : Manifest.t) tr =
   let net = Net.create () in
-  let errs = ref [] in
-  let add e = errs := e :: !errs in
-  let try_ f = try f () with Bind.Unbound (req, st) -> add (unbound (req, st)) in
-  (match
-     try
-       Some
-         (Bind.clock net tr ~model:"i8080" ~purpose:"T-state clock" ~name:"tstate"
-            ?enable:(Option.map at m.clock.enable) (rule_of m.clock.rule) (at m.clock.path))
-     with Bind.Unbound (req, st) ->
-       add (unbound (req, st));
-       None
-   with
-  | None -> ()
-  | Some (Clock.Any clk) ->
-      let scope = Bind.root net tr clk ~model:"i8080" (at []) in
-      List.iter
-        (fun (s : Manifest.signal) ->
-          try_ (fun () ->
-              ignore
-                (Bind.resolve ~purpose:s.name
-                   (Bind.root net tr clk ~model:"i8080" ~overrides:[ (s.name, at s.path) ] (at []))
-                   s.name (Bind.Exact s.width)));
-          Option.iter
-            (fun v ->
-              let name = valid_name s in
-              try_ (fun () ->
-                  ignore
-                    (Bind.resolve ~purpose:name
-                       (Bind.root net tr clk ~model:"i8080" ~overrides:[ (name, at v) ] (at []))
-                       name (Bind.Exact 1))))
-            s.valid)
-        m.signals;
-      ignore scope);
-  match List.rev !errs with [] -> Ok () | l -> Error l
+  Bind.collect net;
+  let (Clock.Any clk) = make_clock m tr net in
+  let scope = flat m tr net clk in
+  List.iter
+    (fun (s : Manifest.signal) ->
+      ignore (Bind.resolve ~purpose:s.name scope s.name (Bind.Exact s.width));
+      if s.valid <> None then
+        ignore (Bind.resolve ~purpose:(valid_name s) scope (valid_name s) (Bind.Exact 1)))
+    m.signals;
+  match List.map unbound (Bind.failures net) with [] -> Ok () | l -> Error l
 
 let to_int_opt l = Option.map Bits.to_int_exn (Logic.to_known l)
 let to_bool_opt l = Option.map (fun v -> v <> 0) (to_int_opt l)
@@ -64,18 +54,8 @@ let run ?(frames = false) (m : Manifest.t) tr =
   | Error e -> Error e
   | Ok () ->
       let net = Net.create () in
-      let (Clock.Any clk) =
-        Bind.clock net tr ~model:"i8080" ~purpose:"T-state clock" ~name:"tstate"
-          ?enable:(Option.map at m.clock.enable) (rule_of m.clock.rule) (at m.clock.path)
-      in
-      let overrides =
-        List.concat_map
-          (fun (s : Manifest.signal) ->
-            (s.name, at s.path)
-            :: (match s.valid with Some v -> [ (valid_name s, at v) ] | None -> []))
-          m.signals
-      in
-      let scope = Bind.root net tr clk ~model:"i8080" ~overrides (at []) in
+      let (Clock.Any clk) = make_clock m tr net in
+      let scope = flat m tr net clk in
       let probe (s : Manifest.signal) = Bind.signal ~purpose:s.name scope s.name Bind.logic in
       let pins = List.filter (fun (s : Manifest.signal) -> s.kind = Manifest.Pin) m.signals in
       let regs = List.filter (fun (s : Manifest.signal) -> s.kind = Manifest.Register) m.signals in
@@ -197,11 +177,13 @@ let run ?(frames = false) (m : Manifest.t) tr =
       let sched =
         match Sched.compile net with Ok s -> s | Error _ -> failwith "i8080_observe: net"
       in
-      ignore (Sched.run sched (Sampler.create tr (Net.domains net)));
+      let sampler = Sampler.create tr (Net.domains net) in
+      let stats = Sched.run sched sampler in
       Ok
         {
           events = List.rev !events;
           frames = List.rev !fr;
           tstates = !count;
-          diagnostics = List.of_seq (Diag.stream net);
+          enabled = stats.Sched.enabled.(0);
+          diagnostics = List.of_seq (Diag.stream net) @ Diag.summarize sampler;
         }

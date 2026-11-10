@@ -1,0 +1,13 @@
+; Test support shared by the observatory's tests and those of the RTL under test: hand-written K4 traces,
+; a synthetic waveform writer and traces run in Rivet's model.
+
+(library
+ (name i8080_trace_testing)
+ (wrapped false)
+ (libraries
+  hwfrp
+  hwfrp.native
+  ovcd.vcd_types
+  rivet.i8080_sem
+  rivet.compute
+  i8080_trace))

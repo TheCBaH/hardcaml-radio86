@@ -1,10 +1,11 @@
-(* The executed instructions and the state they update, read through hwfrp from a waveform: the Hardcaml
-   core's Vcd.wrap output, and programs run in Rivet's model and given the bus shape of the K4 traces. *)
+(* The executed instructions and the state they update, read through hwfrp from a synthetic waveform of
+   programs run in Rivet's model, given the bus shape of the K4 traces. *)
 open I8080_trace
 open Helpers
+open Reference
 
 let observe ?(regs = true) frames =
-  let m = if regs then with_regs () else flat (pins_only (manifest ())) in
+  let m = if regs then with_regs () else pins_only (manifest ()) in
   match Observe.run m (Synth.trace ~regs m frames) with
   | Ok r -> r
   | Error l -> failwith (String.concat "\n" l)
@@ -116,42 +117,4 @@ let%expect_test "without registers in the manifest only memory and ports are upd
     regs unobserved
     mem 0000: 21 00 20 36 55 06 03 af 80 05 c2 08 00 77 76
     mem 2000: 06
-    |}]
-
-(* The Hardcaml core's own waveform (Vcd.wrap), registers included, read back with hwfrp. *)
-let rtl_trail stim =
-  let file = Filename.temp_file "i8080" ".vcd" in
-  let oc = open_out_bin file in
-  ignore (Fixture.run ~vcd:oc stim);
-  close_out oc;
-  let m =
-    match Manifest.load "../manifests/hardcaml-vcd.json" with Ok m -> m | Error e -> failwith e
-  in
-  match Observe.run m (Hwfrp_native.open_file file) with
-  | Ok r -> r
-  | Error l -> failwith (String.concat "\n" l)
-
-let%expect_test "the Hardcaml core: MVI, STA and HLT, with and without waits" =
-  show (rtl_trail Fixture.nowait);
-  print_endline "== two waits on the write";
-  show (rtl_trail Fixture.wait2);
-  [%expect
-    {|
-    0000 mvi a, 0x2a      a:00->2a pc:0000->0002
-    0002 sta 0x2000       pc:0002->0005 mem[2000]:?->2a
-    0005 hlt              pc:0005->0006
-    --
-    3 instructions
-    regs a=2a b=00 c=00 d=00 e=00 h=00 l=00 f=02 sp=0000 pc=0006
-    mem 0000: 3e 2a 32 00 20 76
-    mem 2000: 2a
-    == two waits on the write
-    0000 mvi a, 0x2a      a:00->2a pc:0000->0002
-    0002 sta 0x2000       pc:0002->0005 mem[2000]:?->2a
-    0005 hlt              pc:0005->0006
-    --
-    3 instructions
-    regs a=2a b=00 c=00 d=00 e=00 h=00 l=00 f=02 sp=0000 pc=0006
-    mem 0000: 3e 2a 32 00 20 76
-    mem 2000: 2a
     |}]

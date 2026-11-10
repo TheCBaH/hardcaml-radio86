@@ -1,9 +1,10 @@
 open I8080_trace
 open Helpers
+open Reference
 
 let show = function Ok () -> print_endline "valid" | Error l -> List.iter print_endline l
 
-let%expect_test "the vm80a manifest" =
+let%expect_test "the reference manifest" =
   let m = manifest () in
   show (Manifest.validate m);
   Printf.printf "%d signals, registers: %b, snapshot at %s\n" (List.length m.signals)

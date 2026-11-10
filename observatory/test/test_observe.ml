@@ -1,5 +1,6 @@
 open I8080_trace
 open Helpers
+open Reference
 
 let events_of m frames =
   match Observe.run m (Synth.trace m frames) with
@@ -7,7 +8,7 @@ let events_of m frames =
   | Error l -> failwith (String.concat "\n" l)
 
 let%test "hwfrp over a synthetic waveform gives the events of the frames, both fixtures" =
-  let m = flat (pins_only (manifest ())) in
+  let m = pins_only (manifest ()) in
   List.for_all
     (fun text ->
       let frames = frames_of text in
@@ -18,7 +19,7 @@ let%test "hwfrp over a synthetic waveform gives the events of the frames, both f
     [ Traces.nowait; Traces.wait2 ]
 
 let%expect_test "a missing probe is a hard error naming it" =
-  let m = flat (pins_only (manifest ())) in
+  let m = pins_only (manifest ()) in
   let m =
     {
       m with
@@ -29,14 +30,14 @@ let%expect_test "a missing probe is a hard error naming it" =
           m.signals;
     }
   in
-  let tr = Synth.trace (flat (pins_only (manifest ()))) (frames_of Traces.nowait) in
+  let tr = Synth.trace (pins_only (manifest ())) (frames_of Traces.nowait) in
   (match Observe.run m tr with
   | Ok _ -> print_endline "unexpectedly ran"
   | Error l -> List.iter print_endline l);
   [%expect {| missing i8080_tb.pin_waitt: wait |}]
 
 let%expect_test "a width that differs is a hard error" =
-  let m = flat (pins_only (manifest ())) in
+  let m = pins_only (manifest ()) in
   let m =
     {
       m with
@@ -46,14 +47,14 @@ let%expect_test "a width that differs is a hard error" =
           m.signals;
     }
   in
-  let tr = Synth.trace (flat (pins_only (manifest ()))) (frames_of Traces.nowait) in
+  let tr = Synth.trace (pins_only (manifest ())) (frames_of Traces.nowait) in
   (match Observe.run m tr with
   | Ok _ -> print_endline "unexpectedly ran"
   | Error l -> List.iter print_endline l);
   [%expect {| width   i8080_tb.pin_a 16, expected 8: a |}]
 
 let%expect_test "the trace lacking a pin the manifest names, and a missing clock" =
-  let m = flat (pins_only (manifest ())) in
+  let m = pins_only (manifest ()) in
   let tr = Synth.trace ~drop:[ "hold"; "int" ] m (frames_of Traces.nowait) in
   (match Observe.bind_check m tr with
   | Ok () -> print_endline "ok"

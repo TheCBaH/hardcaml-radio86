@@ -2,6 +2,7 @@
    binding pass and the run report about a trace. *)
 open I8080_trace
 open Helpers
+open Reference
 
 let m_flat () = with_regs ()
 let frames = lazy (Model_trace.frames Test_trail.sum_loop)

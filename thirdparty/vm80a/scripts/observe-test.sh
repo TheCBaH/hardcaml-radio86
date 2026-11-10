@@ -7,8 +7,9 @@ set -eu
 rel=$(echo "$1"/retrocpu-vm80a-sim-*)
 diag=$1/retrocpu-diagnostics
 here=$(cd "$(dirname "$0")/.." && pwd)
-out=$here/out
-manifest=$here/manifests/vm80a-fst.json
+root=$(cd "$here/../.." && pwd)
+out=$root/out
+manifest=$here/manifest.json
 obs="opam exec -- dune exec --no-print-directory -- i8080_observe"
 mkdir -p "$out"
 
@@ -23,7 +24,7 @@ for id in mvi-sta-hlt mvi-sta-hlt-wait2; do
     $obs k4 --manifest "$manifest" --hand "$rel/fixtures/$id.trace" --against "$out/$id.fst"
     $obs pins --manifest "$manifest" --trace "$out/$id.fst" --pin-trace "$out/$id.trace"
     $obs replay "$out/$id.export"
-    cmp "$out/$id.jsonl" "$here/test/golden/$id.jsonl"
+    cmp "$out/$id.jsonl" "$here/golden/$id.jsonl"
 done
 
 # A manifest that names a path the trace does not have is refused, with the path in the message.
@@ -42,7 +43,7 @@ python3 -I "$rel/vm80a.py" com "$diag/8080PRE.COM" "$pre" --trace -- "$rel/bin/v
 $obs pins --manifest "$manifest" --trace "$pre/8080PRE.fst" --pin-trace "$pre/8080PRE.trace" --from-pc 0x100
 $obs observe --manifest "$manifest" --trace "$pre/8080PRE.fst" --export "$out/8080PRE.export"
 $obs replay "$out/8080PRE.export"
-$obs lockstep --known "$here/test/lockstep-known.txt" --manifest "$manifest" --trace "$pre/8080PRE.fst" \
+$obs lockstep --known "$here/lockstep-known.txt" --manifest "$manifest" --trace "$pre/8080PRE.fst" \
     --program "$diag/8080PRE.COM" --shim "$diag"
 # Reading the registers in T1 of the next fetch is too early on vm80a: the lockstep must notice.
 sed 's/"fetch_accepted"/"fetch_t1"/' "$manifest" > "$out/t1-manifest.json"

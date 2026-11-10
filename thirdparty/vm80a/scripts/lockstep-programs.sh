@@ -8,7 +8,8 @@ rel=$1 tool=$2 seeds=$3 units=$4 plant=${5:-}
 vm=$(echo "$rel"/retrocpu-vm80a-sim-*)
 diag=$rel/retrocpu-diagnostics
 here=$(cd "$(dirname "$0")/.." && pwd)
-work=$here/out/programs
+root=$(cd "$here/../.." && pwd)
+work=$root/out/programs
 mkdir -p "$work"
 obs="opam exec -- dune exec --no-print-directory -- i8080_observe"
 caught=0 agree=0 instrs=0 classified=0
@@ -21,12 +22,12 @@ while [ "$s" -le "$seeds" ]; do
     python3 -I "$vm/vm80a.py" com "$d/prog.com" "$d" --trace -- "$vm/bin/vm80a_sim" "+fst=$d/prog.fst" > "$d/vm.log" 2>&1 ||
         { cat "$d/vm.log"; echo "seed $s: vm80a_sim failed" >&2; exit 1; }
     if [ -n "$plant" ]; then
-        if $obs lockstep --plant "$plant" --expect-divergence --known "$here/test/lockstep-known.txt" --manifest "$here/manifests/vm80a-fst.json" \
+        if $obs lockstep --plant "$plant" --expect-divergence --known "$here/lockstep-known.txt" --manifest "$here/manifest.json" \
             --trace "$d/prog.fst" --program "$d/prog.com" --shim "$diag" > "$d/lockstep.txt" 2>&1; then
             caught=$((caught + 1))
         fi
     else
-        $obs lockstep --known "$here/test/lockstep-known.txt" --manifest "$here/manifests/vm80a-fst.json" --trace "$d/prog.fst" \
+        $obs lockstep --known "$here/lockstep-known.txt" --manifest "$here/manifest.json" --trace "$d/prog.fst" \
             --program "$d/prog.com" --shim "$diag" > "$d/lockstep.txt" 2>&1 ||
             { cat "$d/lockstep.txt"; echo "seed $s: lockstep diverged" >&2; exit 1; }
         n=$(sed -n 's/^\([0-9]*\) instructions agree.*/\1/p' "$d/lockstep.txt")

@@ -1,5 +1,6 @@
 open I8080_trace
 open Helpers
+open Reference
 
 let%expect_test "the no-wait hand trace" =
   print (Pipeline.run (manifest ()).snapshot (List.to_seq (frames_of Traces.nowait)));

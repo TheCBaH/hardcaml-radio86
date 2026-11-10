@@ -6,8 +6,9 @@
 set -eu
 rel=$(echo "$1"/retrocpu-vm80a-sim-*)
 here=$(cd "$(dirname "$0")/.." && pwd)
-out=$here/out/rtl
-manifest=$here/manifests/hardcaml-vcd.json
+root=$(cd "$here/.." && pwd)
+out=$root/out/rtl
+manifest=$here/manifest.json
 run="opam exec -- dune exec --no-print-directory -- i8080_rtl_run"
 obs="opam exec -- dune exec --no-print-directory -- i8080_observe"
 mkdir -p "$out"

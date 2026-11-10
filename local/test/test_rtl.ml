@@ -186,7 +186,7 @@ let%expect_test "the core elaborates, with its observation ports named" =
 
 (* P3: the waveform Vcd.wrap writes, read back with hwfrp through the observation library. *)
 let hardcaml_manifest () =
-  match Manifest.load "../manifests/hardcaml-vcd.json" with Ok m -> m | Error e -> failwith e
+  match Manifest.load "../manifest.json" with Ok m -> m | Error e -> failwith e
 
 let vcd_of ?tick_every stim =
   let file = Filename.temp_file "i8080" ".vcd" in

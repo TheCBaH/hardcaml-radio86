@@ -1,0 +1,7 @@
+(library
+ (name vm80a_test)
+ (inline_tests
+  (deps ../manifest.json))
+ (preprocess
+  (pps ppx_expect))
+ (libraries i8080_trace i8080_trace_testing))

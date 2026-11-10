@@ -1,5 +1,6 @@
 open I8080_trace
 open Helpers
+open Reference
 
 let%expect_test "the Perfetto lanes of the hand trace are JSON" =
   let m = manifest () in
@@ -13,7 +14,7 @@ let%expect_test "the Perfetto lanes of the hand trace are JSON" =
     {|
     valid JSON
     {"displayTimeUnit":"ns","traceEvents":[
-    {"ph":"M","pid":1,"name":"process_name","args":{"name":"i8080 vm80a-fst"}},
+    {"ph":"M","pid":1,"name":"process_name","args":{"name":"i8080 reference"}},
     {"ph":"M","pid":1,"tid":1,"name":"thread_name","args":{"name":"instructions"}},
     {"ph":"M","pid":1,"tid":2,"name":"thread_name","args":{"name":"bus"}},
     {"ph":"M","pid":1,"tid":3,"name":"thread_name","args":{"name":"control"}},
@@ -38,7 +39,7 @@ let%expect_test "the JSON lines of the hand trace" =
   print_string (Export.jsonl m evs);
   [%expect
     {|
-    {"format":"i8080-events/1","manifest":"vm80a-fst","profile":"i8080a/1"}
+    {"format":"i8080-events/1","manifest":"reference","profile":"i8080a/1"}
     {"ev":"transfer","epoch":0,"seq":0,"kind":"fetch","status":"0xa2","addr":"0x0000","data":"0x3e","first":0,"last":2,"waits":0}
     {"ev":"transfer","epoch":0,"seq":1,"kind":"mem_read","status":"0x82","addr":"0x0001","data":"0x2a","first":4,"last":6,"waits":0}
     {"ev":"transfer","epoch":0,"seq":2,"kind":"fetch","status":"0xa2","addr":"0x0002","data":"0x32","first":7,"last":9,"waits":0}

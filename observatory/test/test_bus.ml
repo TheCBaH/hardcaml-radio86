@@ -1,5 +1,6 @@
 open I8080_trace
 open Helpers
+open Reference
 
 let frame ?(a = None) ?(dout = None) ?(din = None) ?(sync = Some false) ?(dbin = Some false)
     ?(wr_n = Some true) ?(wait = Some false) ?(reset = Some false) n : Frame.t =

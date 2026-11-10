@@ -1,0 +1,251 @@
+{
+  "format": "i8080-observation-manifest/1",
+  "id": "hardcaml-vcd",
+  "profile": "i8080a/1",
+  "description": "The Hardcaml i8080 core (local/rtl/core.ml) simulated in Cyclesim and written by Vcd.wrap. Vcd.wrap records the pre-edge inputs and outputs of cycle k at the timestamp of the rising edge that ends it, so a T-state is the rising edge where the sample strobe is high, sampled after the edge (the values written with it). Pins are the core's ports; the registers are observation ports.",
+  "clock": {
+    "path": [
+      "inputs",
+      "clock"
+    ],
+    "rule": "after_rising",
+    "enable": {
+      "path": [
+        "outputs",
+        "sample"
+      ]
+    }
+  },
+  "snapshot": "fetch_accepted",
+  "signals": [
+    {
+      "name": "a",
+      "path": [
+        "outputs",
+        "a"
+      ],
+      "width": 16,
+      "kind": "pin"
+    },
+    {
+      "name": "do",
+      "path": [
+        "outputs",
+        "dout"
+      ],
+      "width": 8,
+      "kind": "pin",
+      "valid": [
+        "outputs",
+        "dout_en"
+      ]
+    },
+    {
+      "name": "di",
+      "path": [
+        "inputs",
+        "di"
+      ],
+      "width": 8,
+      "kind": "pin"
+    },
+    {
+      "name": "sync",
+      "path": [
+        "outputs",
+        "sync"
+      ],
+      "width": 1,
+      "kind": "pin"
+    },
+    {
+      "name": "dbin",
+      "path": [
+        "outputs",
+        "dbin"
+      ],
+      "width": 1,
+      "kind": "pin"
+    },
+    {
+      "name": "wr_n",
+      "path": [
+        "outputs",
+        "wr_n"
+      ],
+      "width": 1,
+      "kind": "pin"
+    },
+    {
+      "name": "wait",
+      "path": [
+        "outputs",
+        "wait_"
+      ],
+      "width": 1,
+      "kind": "pin"
+    },
+    {
+      "name": "hlda",
+      "path": [
+        "outputs",
+        "hlda"
+      ],
+      "width": 1,
+      "kind": "pin"
+    },
+    {
+      "name": "inte",
+      "path": [
+        "outputs",
+        "inte"
+      ],
+      "width": 1,
+      "kind": "pin"
+    },
+    {
+      "name": "ready",
+      "path": [
+        "inputs",
+        "ready"
+      ],
+      "width": 1,
+      "kind": "pin"
+    },
+    {
+      "name": "hold",
+      "path": [
+        "inputs",
+        "hold"
+      ],
+      "width": 1,
+      "kind": "pin"
+    },
+    {
+      "name": "int",
+      "path": [
+        "inputs",
+        "int_req"
+      ],
+      "width": 1,
+      "kind": "pin"
+    },
+    {
+      "name": "reset",
+      "path": [
+        "inputs",
+        "rst_in"
+      ],
+      "width": 1,
+      "kind": "pin"
+    },
+    {
+      "name": "acc",
+      "path": [
+        "outputs",
+        "acc"
+      ],
+      "width": 8,
+      "kind": "register"
+    },
+    {
+      "name": "bc",
+      "path": [
+        "outputs",
+        "bc"
+      ],
+      "width": 16,
+      "kind": "register"
+    },
+    {
+      "name": "de",
+      "path": [
+        "outputs",
+        "de"
+      ],
+      "width": 16,
+      "kind": "register"
+    },
+    {
+      "name": "hl",
+      "path": [
+        "outputs",
+        "hl"
+      ],
+      "width": 16,
+      "kind": "register"
+    },
+    {
+      "name": "sp",
+      "path": [
+        "outputs",
+        "sp"
+      ],
+      "width": 16,
+      "kind": "register"
+    },
+    {
+      "name": "pc",
+      "path": [
+        "outputs",
+        "pc"
+      ],
+      "width": 16,
+      "kind": "register"
+    },
+    {
+      "name": "wz",
+      "path": [
+        "outputs",
+        "wz"
+      ],
+      "width": 16,
+      "kind": "register"
+    },
+    {
+      "name": "z",
+      "path": [
+        "outputs",
+        "z"
+      ],
+      "width": 1,
+      "kind": "register"
+    },
+    {
+      "name": "s",
+      "path": [
+        "outputs",
+        "s"
+      ],
+      "width": 1,
+      "kind": "register"
+    },
+    {
+      "name": "p",
+      "path": [
+        "outputs",
+        "p"
+      ],
+      "width": 1,
+      "kind": "register"
+    },
+    {
+      "name": "c",
+      "path": [
+        "outputs",
+        "c"
+      ],
+      "width": 1,
+      "kind": "register"
+    },
+    {
+      "name": "ac",
+      "path": [
+        "outputs",
+        "ac"
+      ],
+      "width": 1,
+      "kind": "register"
+    }
+  ]
+}

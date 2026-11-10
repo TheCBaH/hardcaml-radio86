@@ -1,0 +1,5 @@
+(executable
+ (name i8080_rtl_run)
+ (public_name i8080_rtl_run)
+ (package hardcaml-radio86)
+ (libraries i8080_rtl cmdliner hardcaml))

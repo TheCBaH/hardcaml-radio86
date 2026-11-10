@@ -1,12 +1,12 @@
 OPAM_EXEC = opam exec --
 DUNE = $(OPAM_EXEC) dune
 RETROCPU ?= .retrocpu
-FETCH = thirdparty/vm80a/scripts/retrocpu-fetch.sh
-RIVET_TOOL = thirdparty/vm80a/scripts/rivet-tool.sh
+FETCH = scripts/retrocpu-fetch.sh
+RIVET_TOOL = scripts/rivet-tool.sh
 SEEDS ?= 24
 UNITS ?= 150
 
-.PHONY: deps versions build test test-observatory test-vm80a test-local fmt fmt-check fetch observe-test rtl-test lockstep-test pin-check ci clean
+.PHONY: deps versions build test test-observatory test-vm80a test-local fmt fmt-check fetch observe-test rtl-test lockstep-test rtl-lockstep-test pin-check ci clean
 
 deps:
 	opam install . --deps-only --with-test -y
@@ -56,11 +56,16 @@ lockstep-test: build
 	thirdparty/vm80a/scripts/lockstep-programs.sh "$$($(FETCH) $(RETROCPU))" "$$($(RIVET_TOOL))" $(SEEDS) $(UNITS)
 	thirdparty/vm80a/scripts/lockstep-programs.sh "$$($(FETCH) $(RETROCPU))" "$$($(RIVET_TOOL))" $(SEEDS) $(UNITS) ult
 
+# The same seeded programs on the Hardcaml core, in lockstep with the model.
+rtl-lockstep-test: build
+	local/scripts/lockstep-programs.sh "$$($(FETCH) $(RETROCPU))" "$$($(RIVET_TOOL))" $(SEEDS) $(UNITS)
+	local/scripts/lockstep-programs.sh "$$($(FETCH) $(RETROCPU))" "$$($(RIVET_TOOL))" $(SEEDS) $(UNITS) ult
+
 # The Rivet commit is named in four places.
 pin-check:
 	scripts/pin-check.sh
 
-ci: fmt-check build test pin-check rtl-test observe-test lockstep-test
+ci: fmt-check build test pin-check rtl-test observe-test lockstep-test rtl-lockstep-test
 
 clean:
 	$(DUNE) clean

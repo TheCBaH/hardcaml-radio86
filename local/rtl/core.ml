@@ -1,13 +1,15 @@
-(* i8080 datapath and sequencer skeleton (P2): reset, fetch, MVI A, STA, HLT and READY waits.
+(* The Intel 8080 in Hardcaml: all 256 opcodes, with I/O. The exceptions are HOLD and INT, which stop the
+   core in a fault state that says why; the interrupt-acknowledge cycles and HLDA are not built.
 
    One enabled clock cycle is one T-state (K2). The pins are a function of the state registers only
    (Moore), so the values seen in the cycle that ends T-state k are the pins of T-state k together with
-   the inputs applied during it: this is the sample of the K4 pin trace. Every other opcode is
-   rejected: the sequencer stops in the fault state and says why on [trap]/[trap_cause].
+   the inputs applied during it: this is the sample of the K4 pin trace.
 
-   Unimplemented on purpose: the other 253 opcodes, INTE/EI/DI, HOLD, INT, I/O and stack cycles.
-   The registers other than A and PC are held at their reset values; they exist so that the
-   observation ports are the ones the CPU will keep. *)
+   Sequencing: an instruction is a list of bus-visible machine cycles ({!Plan}); a ROM indexed by the
+   opcode and the cycle number gives each cycle's status word, length and address source. The T-states
+   past T3 of a cycle are the internal work the 8080 does after the bus transfer. All register effects
+   of a cycle happen in its last T-state, and the address of the next cycle is formed in its T1 from the
+   registers that effect has just written. *)
 open Hardcaml
 open Signal
 
@@ -60,7 +62,7 @@ module O = struct
   [@@deriving hardcaml]
 end
 
-(* T-state register *)
+(* T-state register; [t4] stands for every T-state after T3 of a cycle *)
 let idle = 0
 let t1 = 1
 let t2 = 2
@@ -70,87 +72,257 @@ let t4 = 5
 let twh = 6
 let fault = 7
 
-(* machine-cycle register *)
-let c_fetch = 0
-let c_read_imm = 1
-let c_read_lo = 2
-let c_read_hi = 3
-let c_write = 4
-let c_halt = 5
-
 (* trap causes *)
-let cause_opcode = 1
 let cause_input = 2
-
-(* the implemented opcodes *)
-let op_mvi_a = 0x3e
-let op_sta = 0x32
-let op_hlt = 0x76
 let reset_flags = 0x02
+let parity x = ~:(List.fold_left ( ^: ) gnd (bits_msb x))
+let is_zero x = x ==:. 0
 
 let create (i : _ I.t) =
   let spec = Reg_spec.create ~clock:i.clock () in
   let reg w = Always.Variable.reg ~enable:i.tick ~width:w spec in
-  let t = reg 3 and cyc = reg 3 and addr = reg 16 and pc = reg 16 and wz = reg 16 in
-  let a = reg 8 and ir = reg 8 and first_twh = reg 1 and cause = reg 2 in
-  let bc = reg 16 and de = reg 16 and hl = reg 16 and sp = reg 16 and flags = reg 8 in
+  let t = reg 3 and cyc = reg 3 and xc = reg 4 and addr = reg 16 in
+  let pc = reg 16 and sp = reg 16 and wz = reg 16 in
+  let ir = reg 8 and dlat = reg 8 and tmp = reg 8 and flags = reg 8 in
+  let ra = reg 8 and rb = reg 8 and rc = reg 8 and rd = reg 8 and re = reg 8 in
+  let rh = reg 8 and rl = reg 8 in
+  let inte = reg 1 and first_twh = reg 1 and cause = reg 2 in
   let v = Always.Variable.value in
-  let c3 n = of_int ~width:3 n in
-  let in_t n = v t ==: c3 n in
-  let in_c n = v cyc ==: c3 n in
-  let known op = op ==:. op_mvi_a |: (op ==:. op_sta) |: (op ==:. op_hlt) in
-  let reading = in_c c_fetch |: in_c c_read_imm |: in_c c_read_lo |: in_c c_read_hi in
+  let in_t n = v t ==:. n in
+  let irv = v ir and cycv = v cyc in
+  (* the sequencing ROM: status word, length, address source and "last cycle" per opcode and cycle *)
+  let rom ~width field =
+    mux cycv
+      (List.init Plan.max_cycles (fun k ->
+           mux irv (List.init 256 (fun op -> of_int ~width (field op k)))))
+  in
+  let status = rom ~width:8 (fun op k -> (Plan.cycle op k).status) in
+  let len = rom ~width:4 (fun op k -> (Plan.cycle op k).len) in
+  let src = rom ~width:3 (fun op k -> Plan.src_code (Plan.cycle op k).src) in
+  let last = rom ~width:1 (fun op k -> if Plan.is_last op k then 1 else 0) in
+  (* what the opcode is; [&:], [|:] and [==:] share one precedence level, so every mix is bracketed *)
+  let hi2 = irv.:[7, 6] and r3 = irv.:[2, 0] and d3 = irv.:[5, 3] and rp = irv.:[5, 4] in
+  let hi_is n = hi2 ==:. n and r_is n = r3 ==:. n and d_is n = d3 ==:. n in
+  let cyc_is n = cycv ==:. n in
+  let odd_d = d3.:[0, 0] in
+  let ( &&: ) = ( &: ) and ( ||: ) = ( |: ) in
+  let is_mov = hi_is 1 &&: ~:(irv ==:. 0x76) in
+  let is_alu_r = hi_is 2 and is_alu_i = hi_is 3 &&: r_is 6 in
+  let is_lxi = hi_is 0 &&: r_is 1 &&: ~:odd_d and is_dad = hi_is 0 &&: r_is 1 &&: odd_d in
+  let is_ld_st = hi_is 0 &&: r_is 2 in
+  let is_ldax = is_ld_st &&: (d_is 1 ||: d_is 3) in
+  let is_shld = is_ld_st &&: d_is 4 and is_lhld = is_ld_st &&: d_is 5 in
+  let is_lda = is_ld_st &&: d_is 7 in
+  let is_incdec_rp = hi_is 0 &&: r_is 3 in
+  let is_inr = hi_is 0 &&: r_is 4 and is_dcr = hi_is 0 &&: r_is 5 in
+  let is_mvi = hi_is 0 &&: r_is 6 and is_rot = hi_is 0 &&: r_is 7 in
+  let is_rcc = hi_is 3 &&: r_is 0 in
+  let is_pop = hi_is 3 &&: r_is 1 &&: ~:odd_d in
+  let is_ret = hi_is 3 &&: r_is 1 &&: (d_is 1 ||: d_is 3) in
+  let is_pchl = hi_is 3 &&: r_is 1 &&: d_is 5 and is_sphl = hi_is 3 &&: r_is 1 &&: d_is 7 in
+  let is_jcc = hi_is 3 &&: r_is 2 in
+  let is_jmp = hi_is 3 &&: r_is 3 &&: (d_is 0 ||: d_is 1) in
+  let is_out = hi_is 3 &&: r_is 3 &&: d_is 2 and is_in = hi_is 3 &&: r_is 3 &&: d_is 3 in
+  let is_xthl = hi_is 3 &&: r_is 3 &&: d_is 4 and is_xchg = hi_is 3 &&: r_is 3 &&: d_is 5 in
+  let is_di = hi_is 3 &&: r_is 3 &&: d_is 6 and is_ei = hi_is 3 &&: r_is 3 &&: d_is 7 in
+  let is_ccc = hi_is 3 &&: r_is 4 in
+  let is_push = hi_is 3 &&: r_is 5 &&: ~:odd_d and is_call = hi_is 3 &&: r_is 5 &&: odd_d in
+  let is_rst = hi_is 3 &&: r_is 7 in
+  (* register file; selector 6 is memory, which reads as the byte just fetched *)
+  let get8 sel = mux sel [ v rb; v rc; v rd; v re; v rh; v rl; v dlat; v ra ] in
+  let set8 sel value =
+    List.concat_map
+      (fun (n, r) -> Always.[ when_ (sel ==:. n) [ r <-- value ] ])
+      [ (0, rb); (1, rc); (2, rd); (3, re); (4, rh); (5, rl); (7, ra) ]
+  in
+  let bc = v rb @: v rc and de = v rd @: v re and hl = v rh @: v rl in
+  let get_pair sel = mux sel [ bc; de; hl; v sp ] in
+  let set_pair sel value =
+    let hi = value.:[15, 8] and lo = value.:[7, 0] in
+    Always.
+      [
+        when_ (sel ==:. 0) [ rb <-- hi; rc <-- lo ];
+        when_ (sel ==:. 1) [ rd <-- hi; re <-- lo ];
+        when_ (sel ==:. 2) [ rh <-- hi; rl <-- lo ];
+        when_ (sel ==:. 3) [ sp <-- value ];
+      ]
+  in
+  let flag n = (v flags).:[n, n] in
+  let fz = flag 6 and fs = flag 7 and fp = flag 2 and fc = flag 0 and fac = flag 4 in
+  let pack ~s ~z ~ac ~p ~c = concat_msb [ s; z; gnd; ac; gnd; p; vdd; c ] in
+  let flags_of res ~ac ~c = pack ~s:res.:[7, 7] ~z:(is_zero res) ~ac ~p:(parity res) ~c in
+  let cond = mux d3 [ ~:fz; fz; ~:fc; fc; ~:fp; fp; ~:fs; fs ] in
+  (* the ALU: ADD ADC SUB SBB ANA XRA ORA CMP, the bits 5..3 of the opcode *)
+  let a = v ra in
+  let y = mux2 is_alu_i (v dlat) (get8 r3) in
+  let alu_sub = d_is 2 ||: d_is 3 ||: d_is 7 in
+  let alu_logic = d_is 4 ||: d_is 5 ||: d_is 6 in
+  let cin = mux d3 [ gnd; fc; vdd; ~:fc; gnd; gnd; gnd; vdd ] in
+  let yin = mux2 alu_sub ~:y y in
+  let sum9 = uresize a 9 +: uresize yin 9 +: uresize cin 9 in
+  let sum = sum9.:[7, 0] in
+  let sum_ac = a.:[4, 4] ^: yin.:[4, 4] ^: sum.:[4, 4] in
+  let sum_c = mux2 alu_sub ~:(sum9.:[8, 8]) sum9.:[8, 8] in
+  let alu_res = mux d3 [ sum; sum; sum; sum; a &: y; a ^: y; a |: y; sum ] in
+  let alu_ac = mux2 (d_is 4) (a.:[3, 3] |: y.:[3, 3]) (mux2 alu_logic gnd sum_ac) in
+  let alu_c = mux2 alu_logic gnd sum_c in
+  let alu_flags = flags_of alu_res ~ac:alu_ac ~c:alu_c in
+  (* INR and DCR, on the register named by bits 5..3 or the byte just read *)
+  let incdec_src = get8 d3 in
+  let incdec_res = mux2 (r_is 4) (incdec_src +:. 1) (incdec_src -:. 1) in
+  let incdec_ac = mux2 (r_is 4) (incdec_src.:[3, 0] ==:. 0xf) ~:(incdec_src.:[3, 0] ==:. 0) in
+  let incdec_flags = flags_of incdec_res ~ac:incdec_ac ~c:fc in
+  (* RLC RRC RAL RAR *)
+  let left_c = a.:[7, 7] and right_c = a.:[0, 0] in
+  let rot_res =
+    mux d3.:[1, 0] [ a.:[6, 0] @: left_c; right_c @: a.:[7, 1]; a.:[6, 0] @: fc; fc @: a.:[7, 1] ]
+  in
+  let rot_c = mux d3.:[1, 0] [ left_c; right_c; left_c; right_c ] in
+  (* DAA *)
+  let lo_adj = a.:[3, 0] >:. 9 ||: fac and hi_adj = a >:. 0x99 ||: fc in
+  let daa_cor =
+    mux2 hi_adj
+      (mux2 lo_adj (of_int ~width:8 0x66) (of_int ~width:8 0x60))
+      (mux2 lo_adj (of_int ~width:8 0x06) (zero 8))
+  in
+  let daa_res = a +: daa_cor in
+  let daa_ac = (uresize a.:[3, 0] 5 +: uresize daa_cor.:[3, 0] 5).:[4, 4] in
+  let daa_flags = flags_of daa_res ~ac:daa_ac ~c:hi_adj in
+  let dad17 = uresize hl 17 +: uresize (get_pair rp) 17 in
+  (* what a write cycle puts on the data bus *)
+  let push_hi = mux rp [ v rb; v rd; v rh; v ra ]
+  and push_lo = mux rp [ v rc; v re; v rl; v flags ] in
+  let ret_hi = is_rst &&: cyc_is 1 ||: (~:is_rst &&: cyc_is 3) in
+  let wdata =
+    List.fold_right
+      (fun (c, x) rest -> mux2 c x rest)
+      [
+        (is_ld_st &&: ~:is_shld ||: is_out, a);
+        (is_mov, get8 r3);
+        (is_mvi ||: is_inr ||: is_dcr, v tmp);
+        (is_shld &&: cyc_is 3, v rl);
+        (is_shld, v rh);
+        (is_push &&: cyc_is 1, push_hi);
+        (is_push, push_lo);
+        (is_call ||: is_ccc ||: is_rst &&: ret_hi, (v pc).:[15, 8]);
+        (is_call ||: is_ccc ||: is_rst, (v pc).:[7, 0]);
+        (is_xthl &&: cyc_is 3, v rh);
+      ]
+      (v rl)
+  in
+  (* the cycle in progress *)
+  let halt_cycle = status ==:. 0x8a in
+  let rd_like = status.:[1, 1] &&: ~:halt_cycle in
+  let wr_like = ~:(status.:[1, 1]) in
+  let src_sel = mux2 (cyc_is 0) (zero 3) src in
+  let a_now = mux src_sel [ v pc; hl; bc; de; v sp; v wz ] in
+  let early_end = is_rcc &&: cyc_is 0 ||: (is_ccc &&: cyc_is 2) &&: ~:cond in
+  let finished = last ||: early_end in
+  let fin = in_t t3 &&: (len ==:. 3) ||: (in_t t4 &&: (v xc ==:. 0)) in
+  let advance =
+    Always.[ when_ fin [ t <--. t1; if_ finished [ cyc <--. 0 ] [ cyc <-- cycv +:. 1 ] ] ]
+  in
   (* T2 and each Tw: READY decides between T3 and one more wait; the halt cycle ignores it *)
   let wait_state =
     Always.
       [
-        if_ (in_c c_halt)
+        if_ halt_cycle
           [ t <--. twh; first_twh <--. 1 ]
           [
             if_ i.ready
-              [
-                t <--. t3;
-                switch (v cyc)
-                  [
-                    (c3 c_fetch, [ ir <-- i.di ]);
-                    (c3 c_read_imm, [ a <-- i.di ]);
-                    (c3 c_read_lo, [ wz <-- (v wz).:[15, 8] @: i.di ]);
-                    (c3 c_read_hi, [ wz <-- i.di @: (v wz).:[7, 0] ]);
-                  ];
-              ]
+              [ t <--. t3; when_ rd_like [ dlat <-- i.di ]; when_ (cyc_is 0) [ ir <-- i.di ] ]
               [ t <--. tw ];
           ];
       ]
   in
-  let next_cycle ~cycle ~address = Always.[ t <--. t1; cyc <--. cycle; addr <-- address ] in
-  let t3_state =
+  let t3_state = Always.[ when_ (len <>:. 3) [ t <--. t4; xc <-- len -:. 4 ] ] in
+  let t4_state = Always.[ when_ (v xc <>:. 0) [ xc <-- v xc -:. 1 ] ] in
+  (* the effects of a cycle, in its last T-state *)
+  let at n = fin &&: cyc_is n in
+  let pc_next = v dlat @: (v wz).:[7, 0] in
+  let wz_lo = Always.[ wz <-- (v wz).:[15, 8] @: v dlat ] in
+  let wz_hi = Always.[ wz <-- v dlat @: (v wz).:[7, 0] ] in
+  let sp_pop = Always.[ sp <-- v sp +:. 1 ] and sp_push = Always.[ sp <-- v sp -:. 1 ] in
+  let take = ~:(is_jcc ||: is_ccc) ||: cond in
+  let wz16 = is_lxi ||: (is_ld_st &&: d3.:[2, 2]) ||: is_jcc ||: is_jmp ||: is_ccc ||: is_call in
+  let other_flags_unchanged ~c = pack ~s:fs ~z:fz ~ac:fac ~p:fp ~c in
+  let alu_now =
+    at 0 &&: is_alu_r &&: ~:(r_is 6) ||: (at 1 &&: (is_alu_r &&: r_is 6 ||: is_alu_i))
+  in
+  let pop_to lo_hi =
     Always.
       [
-        if_ (in_c c_fetch)
-          [ if_ (known (v ir)) [ t <--. t4 ] [ t <--. fault; cause <--. cause_opcode ] ]
-          [
-            switch (v cyc)
-              [
-                (c3 c_read_imm, next_cycle ~cycle:c_fetch ~address:(v pc));
-                (c3 c_read_lo, next_cycle ~cycle:c_read_hi ~address:(v pc));
-                (c3 c_read_hi, next_cycle ~cycle:c_write ~address:(v wz));
-                (c3 c_write, next_cycle ~cycle:c_fetch ~address:(v pc));
-              ];
-          ];
+        when_ (rp ==:. 0) [ (if lo_hi then rb else rc) <-- v dlat ];
+        when_ (rp ==:. 1) [ (if lo_hi then rd else re) <-- v dlat ];
+        when_ (rp ==:. 2) [ (if lo_hi then rh else rl) <-- v dlat ];
+        when_ (rp ==:. 3)
+          (if lo_hi then [ ra <-- v dlat ] else [ flags <-- (v dlat &:. 0xd5 |:. 0x02) ]);
       ]
   in
-  let t4_state =
+  let effects =
     Always.
       [
-        if_
-          (v ir ==:. op_mvi_a)
-          (next_cycle ~cycle:c_read_imm ~address:(v pc))
+        (* operands from the instruction stream and the I/O port number *)
+        when_ (at 1 &&: wz16) wz_lo;
+        when_ (at 2 &&: wz16) wz_hi;
+        when_ (at 1 &&: (is_in ||: is_out)) [ wz <-- v dlat @: v dlat ];
+        (* moves *)
+        when_ (at 0 &&: is_mov &&: ~:(r_is 6) &&: ~:(d_is 6)) (set8 d3 (get8 r3));
+        when_ (at 1 &&: is_mov &&: r_is 6) (set8 d3 (v dlat));
+        when_ (at 1 &&: is_mvi &&: ~:(d_is 6)) (set8 d3 (v dlat));
+        when_ (at 1 &&: is_mvi &&: d_is 6) [ tmp <-- v dlat ];
+        when_ (at 1 &&: is_ldax) [ ra <-- v dlat ];
+        when_ (at 3 &&: is_lda) [ ra <-- v dlat ];
+        when_ (at 2 &&: is_in) [ ra <-- v dlat ];
+        when_ (at 3 &&: is_lhld) [ rl <-- v dlat; wz <-- v wz +:. 1 ];
+        when_ (at 4 &&: is_lhld) [ rh <-- v dlat ];
+        when_ (at 3 &&: is_shld) [ wz <-- v wz +:. 1 ];
+        when_ (at 0 &&: is_xchg) [ rd <-- v rh; re <-- v rl; rh <-- v rd; rl <-- v re ];
+        when_ (at 0 &&: is_sphl) [ sp <-- hl ];
+        (* arithmetic *)
+        when_ alu_now [ flags <-- alu_flags; when_ ~:(d_is 7) [ ra <-- alu_res ] ];
+        when_
+          (at 0 &&: (is_inr ||: is_dcr) &&: ~:(d_is 6))
+          ((flags <-- incdec_flags) :: set8 d3 incdec_res);
+        when_
+          (at 1 &&: (is_inr ||: is_dcr) &&: d_is 6)
+          [ flags <-- incdec_flags; tmp <-- incdec_res ];
+        when_
+          (at 0 &&: is_incdec_rp)
+          (set_pair rp (mux2 odd_d (get_pair rp -:. 1) (get_pair rp +:. 1)));
+        when_
+          (at 0 &&: is_dad)
           [
-            if_
-              (v ir ==:. op_sta)
-              (next_cycle ~cycle:c_read_lo ~address:(v pc))
-              (next_cycle ~cycle:c_halt ~address:(v pc));
+            rh <-- dad17.:[15, 8];
+            rl <-- dad17.:[7, 0];
+            flags <-- other_flags_unchanged ~c:dad17.:[16, 16];
           ];
+        when_ (at 2 &&: is_lxi) (set_pair rp pc_next);
+        when_
+          (at 0 &&: is_rot &&: (d3.:[2, 2] ==:. 0))
+          [ ra <-- rot_res; flags <-- other_flags_unchanged ~c:rot_c ];
+        when_ (at 0 &&: is_rot &&: d_is 4) [ ra <-- daa_res; flags <-- daa_flags ];
+        when_ (at 0 &&: is_rot &&: d_is 5) [ ra <-- ~:a ];
+        when_ (at 0 &&: is_rot &&: d_is 6) [ flags <-- other_flags_unchanged ~c:vdd ];
+        when_ (at 0 &&: is_rot &&: d_is 7) [ flags <-- other_flags_unchanged ~c:~:fc ];
+        when_ (at 0 &&: is_di) [ inte <--. 0 ];
+        when_ (at 0 &&: is_ei) [ inte <--. 1 ];
+        (* jumps, calls, returns and the stack *)
+        when_ (at 2 &&: (is_jcc ||: is_jmp) &&: take) [ pc <-- pc_next ];
+        when_ (at 0 &&: is_pchl) [ pc <-- hl ];
+        when_ (at 2 &&: (is_call ||: is_ccc) &&: take) sp_push;
+        when_ (at 3 &&: (is_call ||: is_ccc)) sp_push;
+        when_ (at 4 &&: (is_call ||: is_ccc)) [ pc <-- v wz ];
+        when_ (at 0 &&: (is_push ||: is_rst)) sp_push;
+        when_ (at 1 &&: (is_push ||: is_rst)) sp_push;
+        when_ (at 2 &&: is_rst) [ pc <-- zero 10 @: d3 @: zero 3 ];
+        when_ (at 1 &&: (is_ret ||: is_rcc ||: is_xthl)) (wz_lo @ sp_pop);
+        when_ (at 2 &&: (is_ret ||: is_rcc)) ([ pc <-- pc_next ] @ sp_pop);
+        when_ (at 1 &&: is_pop) (sp_pop @ pop_to false);
+        when_ (at 2 &&: is_pop) (sp_pop @ pop_to true);
+        when_ (at 2 &&: is_xthl) wz_hi;
+        when_ (at 3 &&: is_xthl) sp_push;
+        when_ (at 4 &&: is_xthl) [ rh <-- (v wz).:[15, 8]; rl <-- (v wz).:[7, 0] ];
       ]
   in
   Always.(
@@ -159,18 +331,25 @@ let create (i : _ I.t) =
         if_ i.rst_in
           [
             t <--. idle;
-            cyc <--. c_fetch;
+            cyc <--. 0;
+            xc <--. 0;
             addr <--. 0;
             pc <--. 0;
+            sp <--. 0;
             wz <--. 0;
-            a <--. 0;
             ir <--. 0;
+            dlat <--. 0;
+            tmp <--. 0;
+            ra <--. 0;
+            rb <--. 0;
+            rc <--. 0;
+            rd <--. 0;
+            re <--. 0;
+            rh <--. 0;
+            rl <--. 0;
             first_twh <--. 0;
             cause <--. 0;
-            bc <--. 0;
-            de <--. 0;
-            hl <--. 0;
-            sp <--. 0;
+            inte <--. 0;
             flags <--. reset_flags;
           ]
           [
@@ -180,57 +359,52 @@ let create (i : _ I.t) =
               [
                 switch (v t)
                   [
-                    (c3 idle, [ t <--. t1; cyc <--. c_fetch; addr <-- v pc ]);
-                    (c3 t1, [ t <--. t2; when_ reading [ pc <-- v pc +:. 1 ] ]);
-                    (c3 t2, wait_state);
-                    (c3 tw, wait_state);
-                    (c3 t3, t3_state);
-                    (c3 t4, t4_state);
-                    (c3 twh, [ first_twh <--. 0 ]);
+                    (of_int ~width:3 idle, [ t <--. t1; cyc <--. 0 ]);
+                    ( of_int ~width:3 t1,
+                      [
+                        t <--. t2;
+                        addr <-- a_now;
+                        when_ (rd_like &: (src_sel ==:. 0)) [ pc <-- v pc +:. 1 ];
+                      ] );
+                    (of_int ~width:3 t2, wait_state);
+                    (of_int ~width:3 tw, wait_state);
+                    (of_int ~width:3 t3, t3_state);
+                    (of_int ~width:3 t4, t4_state);
+                    (of_int ~width:3 twh, [ first_twh <--. 0 ]);
                   ];
+                proc advance;
+                proc effects;
               ];
           ];
       ]);
-  let status =
-    mux (v cyc)
-      [
-        of_int ~width:8 0xa2;
-        of_int ~width:8 0x82;
-        of_int ~width:8 0x82;
-        of_int ~width:8 0x82;
-        of_int ~width:8 0x00;
-        of_int ~width:8 0x8a;
-      ]
-  in
   let sync = in_t t1 in
-  let writing = in_c c_write &: (in_t t2 |: in_t tw |: in_t t3) in
-  let flag n = (v flags).:[n, n] in
+  let writing = wr_like &&: (in_t t2 ||: in_t tw ||: in_t t3) in
   {
-    O.a = v addr;
-    dout = mux2 sync status (v a);
-    dout_en = sync |: writing;
+    O.a = mux2 sync a_now (v addr);
+    dout = mux2 sync status wdata;
+    dout_en = sync ||: writing;
     sync;
-    dbin = reading &: (in_t t2 |: in_t tw);
-    wr_n = ~:(in_c c_write &: (in_t tw |: in_t t3));
-    wait_ = in_t tw |: in_t twh;
+    dbin = rd_like &&: (in_t t2 ||: in_t tw);
+    wr_n = ~:(wr_like &&: (in_t tw ||: in_t t3));
+    wait_ = in_t tw ||: in_t twh;
     hlda = gnd;
-    inte = gnd;
+    inte = v inte;
     sample = i.tick;
-    acc = v a;
-    bc = v bc;
-    de = v de;
-    hl = v hl;
+    acc = v ra;
+    bc;
+    de;
+    hl;
     sp = v sp;
     pc = v pc;
     wz = v wz;
-    z = flag 6;
-    s = flag 7;
-    p = flag 2;
-    c = flag 0;
-    ac = flag 4;
+    z = fz;
+    s = fs;
+    p = fp;
+    c = fc;
+    ac = fac;
     tstate = v t;
     cycle = v cyc;
-    accept = in_t t3 |: (in_t twh &: (v first_twh ==:. 1));
+    accept = in_t t3 ||: (in_t twh &&: (v first_twh ==:. 1));
     opcode = v ir;
     trap = in_t fault;
     trap_cause = v cause;

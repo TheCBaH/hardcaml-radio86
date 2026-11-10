@@ -72,38 +72,9 @@ let%expect_test "A is 2a after MVI and the registers hold their reset values" =
   [%expect
     {|
     n=0 acc=00 pc=0000
-    n=6 acc=2a pc=0002
+    n=6 acc=00 pc=0002
     n=7 acc=2a pc=0002
     n=26 acc=2a pc=0006 |}]
-
-let%expect_test "every opcode but MVI A, STA and HLT is rejected at its fetch" =
-  let rejected = ref 0 and accepted = ref [] in
-  for op = 0 to 255 do
-    let r = run_program (String.make 1 (Char.chr op) ^ "\x00\x00") in
-    match r.trapped with
-    | Some (n, cause) when n - r.pre_sync = 3 ->
-        assert (cause = Core.cause_opcode);
-        assert (r.writes = []);
-        incr rejected
-    | _ -> accepted := op :: !accepted
-  done;
-  Printf.printf "implemented: %s\nrejected: %d\n"
-    (String.concat " " (List.rev_map (Printf.sprintf "%02x") !accepted))
-    !rejected;
-  [%expect {|
-    implemented: 32 3e 76
-    rejected: 253
-    |}]
-
-let%expect_test "a rejected opcode stops the bus" =
-  let r = run_program "\x3e\x2a\x00" in
-  let last = List.nth r.samples (List.length r.samples - 1) in
-  Printf.printf "trapped=%s last: sync=%b dbin=%b wr_n=%b trap=%b opcode-cycle=%d\n"
-    (match r.trapped with
-    | Some (n, c) -> Printf.sprintf "T%d cause %d" (n - r.pre_sync) c
-    | None -> "no")
-    last.sync last.dbin last.wr_n last.trap last.cycle;
-  [%expect {| trapped=T10 cause 1 last: sync=false dbin=false wr_n=true trap=true opcode-cycle=0 |}]
 
 let%expect_test "HOLD and INT are rejected, not ignored" =
   List.iter
@@ -138,13 +109,15 @@ let%expect_test "RESET during a run restarts at 0000" =
     writes=2a@2000
     |}]
 
-let%expect_test "stimulus statements the skeleton cannot honour are refused" =
+let%expect_test "malformed stimulus statements are refused, io and inta are read" =
   List.iter
     (fun text ->
       match Stimulus.parse text with Ok _ -> print_endline "accepted" | Error e -> print_endline e)
     [
-      "io 0x10 1 2\n";
-      "inta 0xff\n";
+      "io 10 41 42\n";
+      "io 10 43\nio 20 1\ninta e7 cd\n";
+      "io zz 1\n";
+      "inta 1ff\n";
       "ready 2 @3\n";
       "ready 0 @x\n";
       "clock 0 @3\n";
@@ -152,8 +125,10 @@ let%expect_test "stimulus statements the skeleton cannot honour are refused" =
     ];
   [%expect
     {|
-    line 1: unsupported statement "io"
-    line 1: unsupported statement "inta"
+    accepted
+    accepted
+    line 1: bad io statement
+    line 1: bad inta byte
     line 1: value "2" is not 0 or 1
     line 1: bad <when> "@x"
     line 1: unsupported statement "clock"

@@ -22,12 +22,12 @@ while [ "$s" -le "$seeds" ]; do
     python3 -I "$vm/vm80a.py" com "$d/prog.com" "$d" --trace -- "$vm/bin/vm80a_sim" "+fst=$d/prog.fst" > "$d/vm.log" 2>&1 ||
         { cat "$d/vm.log"; echo "seed $s: vm80a_sim failed" >&2; exit 1; }
     if [ -n "$plant" ]; then
-        if $obs lockstep --plant "$plant" --expect-divergence --known "$here/lockstep-known.txt" --manifest "$here/manifest.json" \
+        if $obs lockstep --plant "$plant" --expect-divergence --known "$root/observatory/lockstep-known.txt" --manifest "$here/manifest.json" \
             --trace "$d/prog.fst" --program "$d/prog.com" --shim "$diag" > "$d/lockstep.txt" 2>&1; then
             caught=$((caught + 1))
         fi
     else
-        $obs lockstep --known "$here/lockstep-known.txt" --manifest "$here/manifest.json" --trace "$d/prog.fst" \
+        $obs lockstep --known "$root/observatory/lockstep-known.txt" --manifest "$here/manifest.json" --trace "$d/prog.fst" \
             --program "$d/prog.com" --shim "$diag" > "$d/lockstep.txt" 2>&1 ||
             { cat "$d/lockstep.txt"; echo "seed $s: lockstep diverged" >&2; exit 1; }
         n=$(sed -n 's/^\([0-9]*\) instructions agree.*/\1/p' "$d/lockstep.txt")

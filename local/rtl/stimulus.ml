@@ -1,13 +1,18 @@
 (* K4 stimulus schedule (i8080-stimulus v1): ready, hold, int and reset from a sample on, either an
-   absolute sample [n] or anchored on a machine cycle [m<c>+<k>]. IO and INTA statements are
-   rejected: the skeleton has neither. *)
+   absolute sample [n] or anchored on a machine cycle [m<c>+<k>], the bytes successive INs read from a
+   port ([io]) and the bytes interrupt-acknowledge cycles supply ([inta]). *)
 
 type signal = Ready | Hold | Int | Reset
 type at = Sample of int | Cycle of { cycle : int; offset : int }
 type statement = { signal : signal; value : bool; at : at }
-type t = statement list
 
-let empty = []
+type t = {
+  events : statement list;
+  io : (int * int list) list;  (** port, bytes in the order they are read *)
+  inta : int list;
+}
+
+let empty = { events = []; io = []; inta = [] }
 let signal_name = function Ready -> "ready" | Hold -> "hold" | Int -> "int" | Reset -> "reset"
 let default = function Ready -> true | Hold -> false | Int -> false | Reset -> true
 
@@ -24,9 +29,12 @@ let parse_at s =
         | Some (cycle, offset) when cycle >= 0 && offset >= 0 -> Ok (Cycle { cycle; offset })
         | _ -> Error (Printf.sprintf "bad <when> %S" s))
 
+let parse_hex tok =
+  match int_of_string_opt ("0x" ^ tok) with Some b when b >= 0 && b < 256 -> Some b | _ -> None
+
 let parse text =
-  let rec go acc = function
-    | [] -> Ok (List.rev acc)
+  let rec go (acc : t) = function
+    | [] -> Ok { acc with events = List.rev acc.events; io = List.rev acc.io }
     | (lineno, raw) :: rest -> (
         let line =
           match String.index_opt raw '#' with Some i -> String.sub raw 0 i | None -> raw
@@ -35,8 +43,19 @@ let parse text =
         let fail fmt =
           Printf.ksprintf (fun m -> Error (Printf.sprintf "line %d: %s" lineno m)) fmt
         in
+        let bytes l = List.map parse_hex l in
         match toks with
         | [] -> go acc rest
+        | "io" :: port :: (_ :: _ as l) -> (
+            match (parse_hex port, bytes l) with
+            | Some p, bs when List.for_all Option.is_some bs ->
+                go { acc with io = (p, List.filter_map Fun.id bs) :: acc.io } rest
+            | _ -> fail "bad io statement")
+        | "inta" :: (_ :: _ as l) ->
+            let bs = bytes l in
+            if List.for_all Option.is_some bs then
+              go { acc with inta = acc.inta @ List.filter_map Fun.id bs } rest
+            else fail "bad inta byte"
         | [ name; value; at ] -> (
             let signal =
               match name with
@@ -50,11 +69,17 @@ let parse text =
             | None, _, _ -> fail "unsupported statement %S" name
             | _, _, Error e -> fail "%s" e
             | Some signal, ("0" | "1"), Ok at ->
-                go ({ signal; value = value = "1"; at } :: acc) rest
+                go { acc with events = { signal; value = value = "1"; at } :: acc.events } rest
             | _ -> fail "value %S is not 0 or 1" value)
         | name :: _ -> fail "unsupported statement %S" name)
   in
-  go [] (List.mapi (fun i l -> (i + 1, l)) (String.split_on_char '\n' text))
+  go empty (List.mapi (fun i l -> (i + 1, l)) (String.split_on_char '\n' text))
+
+(* The byte the [n]th IN from [port] reads, [None] when the schedule has no more for it. *)
+let io_byte (t : t) ~port ~n =
+  List.nth_opt
+    (List.concat (List.filter_map (fun (p, b) -> if p = port then Some b else None) t.io))
+    n
 
 (* [t1 c] is the sample of the SYNC that opens machine cycle [c], once seen. The value of a signal in
    sample [n] is the latest statement that starts at or before [n]; a statement anchored on a cycle
@@ -70,5 +95,5 @@ let value (t : t) ~(t1 : int -> int option) ~n signal =
       if s.signal <> signal then (best, v)
       else match start s with Some k when k <= n && k >= best -> (k, s.value) | _ -> (best, v))
     (-1, default signal)
-    t
+    t.events
   |> snd

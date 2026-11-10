@@ -80,7 +80,7 @@ let check_cmd =
     Term.(const check $ manifest_arg $ trace_arg)
 
 (* A hand-written K4 pin trace through the same models, optionally compared with a capture. *)
-let k4 manifest hand against =
+let k4 manifest hand against from_pc =
   let m = load_manifest manifest in
   let frames = match K4.parse (read_file hand) with Ok f -> f | Error e -> die "%s: %s" hand e in
   let evs = Pipeline.run m.snapshot (List.to_seq frames) in
@@ -88,12 +88,33 @@ let k4 manifest hand against =
   | None -> print_string (Export.text evs)
   | Some trace ->
       let r = observe_trace m trace in
-      let offset = Option.value (K4.first_t1 r.events) ~default:0 in
-      let d =
-        K4.compare_transfers ~expected:(Events.transfers evs) ~actual:(Events.transfers r.events)
-          ~offset
+      (* with [from_pc] the capture starts at the first fetch there: what ran before it (a boot
+         preamble) is not part of the comparison *)
+      let offset =
+        match from_pc with
+        | None -> Option.value (K4.first_t1 r.events) ~default:0
+        | Some pc -> (
+            match
+              List.find_map
+                (function
+                  | Events.Bus (Bus.Start { kind = Bus.Fetch; addr = Some a; at; _ }) when a = pc ->
+                      Some at
+                  | _ -> None)
+                r.events
+            with
+            | Some at -> at
+            | None -> die "%s: no instruction fetch at %04x" trace pc)
       in
-      let ei = Events.instructions evs and ai = Events.instructions r.events in
+      let actual_transfers =
+        List.filter (fun (c : Bus.cycle) -> c.first >= offset) (Events.transfers r.events)
+      in
+      let d =
+        K4.compare_transfers ~expected:(Events.transfers evs) ~actual:actual_transfers ~offset
+      in
+      let ei = Events.instructions evs in
+      let ai =
+        List.filter (fun (i : Instr.t) -> i.first >= offset) (Events.instructions r.events)
+      in
       let d =
         d
         @
@@ -133,7 +154,14 @@ let k4_cmd =
       $ Arg.(
           value
           & opt (some file) None
-          & info [ "against" ] ~docv:"FST" ~doc:"Compare with this waveform."))
+          & info [ "against" ] ~docv:"FST" ~doc:"Compare with this waveform.")
+      $ Arg.(
+          value
+          & opt (some int) None
+          & info [ "from-pc" ] ~docv:"ADDR"
+              ~doc:
+                "Start the waveform at the first fetch at this address (a boot preamble before it \
+                 is left out)."))
 
 let parse_known file =
   List.filter_map

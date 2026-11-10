@@ -46,7 +46,7 @@ let run image hex origin stim tick_every vcd pin_trace max_tstates =
   match r.trapped with
   | Some (n, cause) ->
       Printf.printf "trap at sample %d, cause %s\n" n
-        (if cause = Core.cause_opcode then "opcode not implemented" else "HOLD or INT requested");
+        (if cause = Core.cause_input then "HOLD or INT requested" else "unknown");
       exit 1
   | None -> ()
 
@@ -69,6 +69,72 @@ let run_cmd =
           value & opt (some string) None & info [ "pin-trace" ] ~docv:"FILE" ~doc:"K4 pin trace.")
       $ Arg.(value & opt int 100_000 & info [ "max-tstates" ] ~docv:"N"))
 
+let default_stim = "# i8080-stimulus v1\nreset 0 @4\n"
+
+(* A CP/M .COM file under the K5 shim: loaded at 0100 behind the release's boot preamble, run until
+   OUT FF or HLT. The console is port 01. *)
+let com file hex stim in_default tick_every vcd pin_trace max_tstates io_out =
+  let memory = Harness.new_memory () in
+  Harness.load_shim memory;
+  Harness.load_program memory ~origin:0x100
+    (if hex then hex_image (read_file file) else read_file file);
+  let stim =
+    match Stimulus.parse (match stim with Some f -> read_file f | None -> default_stim) with
+    | Ok s -> s
+    | Error e -> die "stimulus: %s" e
+  in
+  let oc = Option.map open_out_bin vcd in
+  let r =
+    Harness.run ~tick_every ~max_tstates ?vcd:oc ~stim ~in_default ~stop_ports:[ 0xff ]
+      ~boot:Harness.com_boot ~memory ()
+  in
+  Option.iter close_out oc;
+  Option.iter
+    (fun f -> Out_channel.with_open_bin f (fun oc -> output_string oc (Harness.pin_trace r)))
+    pin_trace;
+  Option.iter
+    (fun f ->
+      Out_channel.with_open_bin f (fun oc ->
+          List.iter (fun (p, b) -> Printf.fprintf oc "%02x %02x\n" p b) r.io_out))
+    io_out;
+  let console = Buffer.create 64 in
+  List.iter (fun (p, b) -> if p = 1 then Buffer.add_char console (Char.chr b)) r.io_out;
+  print_string (Buffer.contents console);
+  Printf.printf "stop %s, tstates %s, %d writes, %d OUTs\n"
+    (match r.stop with
+    | Harness.Halt -> "hlt"
+    | Port p -> Printf.sprintf "port %02x" p
+    | Trap -> "trap"
+    | Budget -> "budget")
+    (match r.counted with Some c -> string_of_int c | None -> "none")
+    (List.length r.writes) (List.length r.io_out);
+  match r.stop with Budget | Trap -> exit 1 | _ -> ()
+
+let com_cmd =
+  Cmd.v
+    (Cmd.info "com" ~doc:"Run a CP/M .COM file under the K5 shim on the Cyclesim model of the core.")
+    Term.(
+      const com
+      $ Arg.(required & pos 0 (some file) None & info [] ~docv:"FILE.COM")
+      $ Arg.(value & flag & info [ "hex" ] ~doc:"The file is hex text, one byte per token.")
+      $ Arg.(
+          value & opt (some file) None & info [ "stim" ] ~docv:"FILE" ~doc:"K4 stimulus schedule.")
+      $ Arg.(
+          value & opt int 0xff
+          & info [ "in-default" ] ~docv:"BYTE"
+              ~doc:"What an IN reads from a port with no bytes left.")
+      $ Arg.(
+          value & opt int 1
+          & info [ "tick-every" ] ~docv:"N" ~doc:"Implementation clock cycles per T-state.")
+      $ Arg.(value & opt (some string) None & info [ "vcd" ] ~docv:"FILE" ~doc:"Vcd.wrap waveform.")
+      $ Arg.(
+          value & opt (some string) None & info [ "pin-trace" ] ~docv:"FILE" ~doc:"K4 pin trace.")
+      $ Arg.(value & opt int 10_000_000 & info [ "max-tstates" ] ~docv:"N")
+      $ Arg.(
+          value
+          & opt (some string) None
+          & info [ "io-out" ] ~docv:"FILE" ~doc:"One \"port value\" hex line per OUT."))
+
 let verilog output =
   let module Circ = Hardcaml.Circuit.With_interface (Core.I) (Core.O) in
   let c = Circ.create_exn ~name:"i8080_core" Core.create in
@@ -84,4 +150,4 @@ let verilog_cmd =
     (Cmd.info "verilog" ~doc:"Write the core as Verilog.")
     Term.(const verilog $ Arg.(value & opt (some string) None & info [ "output" ] ~docv:"FILE"))
 
-let () = exit (Cmd.eval (Cmd.group (Cmd.info "i8080_rtl_run") [ run_cmd; verilog_cmd ]))
+let () = exit (Cmd.eval (Cmd.group (Cmd.info "i8080_rtl_run") [ run_cmd; com_cmd; verilog_cmd ]))

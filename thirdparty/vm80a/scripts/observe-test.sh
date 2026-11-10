@@ -43,13 +43,13 @@ python3 -I "$rel/vm80a.py" com "$diag/8080PRE.COM" "$pre" --trace -- "$rel/bin/v
 $obs pins --manifest "$manifest" --trace "$pre/8080PRE.fst" --pin-trace "$pre/8080PRE.trace" --from-pc 0x100
 $obs observe --manifest "$manifest" --trace "$pre/8080PRE.fst" --export "$out/8080PRE.export"
 $obs replay "$out/8080PRE.export"
-$obs lockstep --known "$here/lockstep-known.txt" --manifest "$manifest" --trace "$pre/8080PRE.fst" \
+$obs lockstep --known "$root/observatory/lockstep-known.txt" --manifest "$manifest" --trace "$pre/8080PRE.fst" \
     --program "$diag/8080PRE.COM" --shim "$diag"
 # Reading the registers in T1 of the next fetch is too early on vm80a: the lockstep must notice.
 sed 's/"fetch_accepted"/"fetch_t1"/' "$manifest" > "$out/t1-manifest.json"
 $obs lockstep --expect-divergence --manifest "$out/t1-manifest.json" --trace "$pre/8080PRE.fst" \
     --program "$diag/8080PRE.COM" --shim "$diag"
-sh "$here/scripts/retrocpu-fetch-test.sh" "$1"
+sh "$root/scripts/retrocpu-fetch-test.sh" "$1"
 for bug in aux carry; do
     $obs lockstep --plant "$bug" --expect-divergence --manifest "$manifest" --trace "$pre/8080PRE.fst" \
         --program "$diag/8080PRE.COM" --shim "$diag"

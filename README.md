@@ -52,19 +52,21 @@ i8080_observe discover --manifest thirdparty/vm80a/manifest.json --trace other.f
 The manifest format is in [observatory/docs/manifest.md](observatory/docs/manifest.md); what was found reading vm80a is in
 [thirdparty/vm80a/README.md](thirdparty/vm80a/README.md).
 
-## The Hardcaml core (P1-P3, `local/`)
+## The Hardcaml core (`local/`)
 
-`i8080_rtl` (library, `local/rtl`) and `i8080_rtl_run` (command): a skeleton of the 8080 in Hardcaml v0.17.1 that does
-reset, fetch, `MVI A`, `STA`, `HLT` and `READY` waits. Every other opcode, and `HOLD` or `INT`, stops the core
-in a fault state with a `trap_cause`; nothing is silently ignored. One enabled cycle is one T-state (`tick`),
-the pins are a function of the state only, and the observation ports (`sample`, `acc`, `bc`.. `pc`, `wz`, the
-flags, `tstate`, `cycle`, `accept`, `opcode`, `trap`) carry the register and control state.
+`i8080_rtl` (library, `local/rtl`) and `i8080_rtl_run` (command): the 8080 in Hardcaml v0.17.1 with **all 256
+opcodes** and I/O, on one sequencing ROM built from `Plan`, the bus-visible machine cycles of each opcode.
+`HOLD` and `INT` are not built: they stop the core in a fault state with a `trap_cause`, nothing is silently
+ignored (no `INTA` cycle, no `HLDA`). One enabled cycle is one T-state (`tick`), the pins are a function of
+the state only, and the observation ports (`sample`, `acc`, `bc`.. `pc`, `wz`, the flags, `tstate`, `cycle`,
+`accept`, `opcode`, `trap`) carry the register and control state.
 
 | Module | What it does |
 | --- | --- |
-| `Core` | The datapath and sequencer (`local/rtl/core.ml`). |
-| `Stimulus` | The K4 stimulus schedule: `ready`, `hold`, `int`, `reset` from a sample or a machine cycle (`m5+1`). `io` and `inta` are refused. |
-| `Harness` | Cyclesim around the core with 64 KiB of RAM: runs a program, counts T-states (K2), records the writes and the K4 pin trace, and writes the `Vcd.wrap` waveform. |
+| `Plan` | Per opcode: the machine cycles the pins show (status word, T-states, address source). DAD's idle cycles and the fifth state of PUSH, CALL, RST, Rcc and XTHL's last write are extra T-states of the cycle before, as on vm80a. Pure data, tested against Rivet's table. |
+| `Core` | The datapath and sequencer (`local/rtl/core.ml`): register file, ALU, flags, DAA, stack, calls. A cycle's effects happen in its last T-state. |
+| `Stimulus` | The K4 stimulus schedule: `ready`, `hold`, `int`, `reset` from a sample or a machine cycle (`m5+1`), `io` bytes per port and `inta` bytes. |
+| `Harness` | Cyclesim around the core with 64 KiB of RAM and I/O ports: runs a program (optionally the K5 shim behind the release's boot preamble), stops at the halt cycle or after an OUT to a stop port, counts T-states (K2), records writes and OUTs and the K4 pin trace, and writes the `Vcd.wrap` waveform. |
 
 The waveform is read by the same `i8080_observe` as the vm80a traces, with `local/manifest.json`:
 the clock is `inputs.clock`, the sample strobe `outputs.sample`, **sampled after the rising edge** (see
@@ -73,28 +75,33 @@ with one write of `2a` to `2000`.
 
 ```sh
 i8080_rtl_run run --hex --image mvi-sta-hlt.run.img --stim mvi-sta-hlt.stim --vcd run.vcd --pin-trace run.trace
+i8080_rtl_run com 8080PRE.COM --vcd pre.vcd          # a CP/M .COM under the K5 shim
 i8080_observe observe --manifest local/manifest.json --trace run.vcd --print
-make rtl-test      # both fixtures, the hand traces, a faster clock, export and replay
+make rtl-test      # the fixtures, 8080PRE and io-console against vm80a_sim, replay, a faster clock
+make rtl-lockstep-test   # Rivet's seeded programs on the core, in lockstep with the model
 ```
 
 ## Pins, nothing built
 
 - hwfrp (coralview `5ff364d`, on `main`) and Rivet (`932dcbd`) are opam pins, in `.devcontainer/devcontainer.json`
   and `hardcaml-radio86.opam.template`. `make pin-check` keeps the Rivet commit in agreement with
-  `thirdparty/vm80a/scripts/rivet.pin`, from which `thirdparty/vm80a/scripts/rivet-tool.sh` builds Rivet's seeded program generator.
+  `scripts/rivet.pin`, from which `scripts/rivet-tool.sh` builds Rivet's seeded program generator.
 - `vm80a_sim` and the exerciser images come from the
   [devcontainer.retrocpu-tools](https://github.com/TheCBaH/devcontainer.retrocpu-tools) release named in
-  `thirdparty/vm80a/scripts/retrocpu.pin`, by tag and SHA-256 (`retrocpu-fetch.sh` in the same directory refuses anything else). No
+  `scripts/retrocpu.pin`, by tag and SHA-256 (`scripts/retrocpu-fetch.sh` refuses anything else). No
   simulator, assembler or Verilator is built here.
 
 ## Tests
 
-`make ci`: format check, build, unit tests (ppx_expect, no simulator needed), `observe-test` (the
+`make ci`: format check, build, unit tests (ppx_expect, no simulator needed; they include all 256 opcodes of the
+core, from three starting states, replayed in Rivet's model), `observe-test` (the
 MVI/STA/HLT fixtures against the K4 hand traces and the committed events, a manifest that names a missing
 path, `8080PRE` in lockstep with planted model bugs, byte-exact replay) and `lockstep-test` (24 seeded
-programs of 150 units under `vm80a_sim`, against the model; a planted bug must be caught).
+programs of 150 units under `vm80a_sim`, against the model; a planted bug must be caught), `rtl-test` (the Hardcaml
+core's fixtures, then `io-console` and `8080PRE` run on both cores: the same OUTs, T-states, bus transfers and
+instructions) and `rtl-lockstep-test` (the same seeded programs on the Hardcaml core).
 
-`thirdparty/vm80a/lockstep-known.txt` lists the differences between the core and the model that were investigated;
+`observatory/lockstep-known.txt` lists the differences between the core and the model that were investigated;
 anything else stops the run.
 
 ## Licence

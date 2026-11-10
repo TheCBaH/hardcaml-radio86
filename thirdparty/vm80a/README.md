@@ -3,14 +3,13 @@
 `vm80a` (KR580VM80A, CC BY 3.0, 1801BM1) observed through the released `vm80a_sim` (Verilator FST), used
 unmodified. Nothing here builds the RTL, the simulator or Verilator: the binaries and the exerciser images
 come from the [devcontainer.retrocpu-tools](https://github.com/TheCBaH/devcontainer.retrocpu-tools) release
-named in `scripts/retrocpu.pin`, by tag and SHA-256 (`scripts/retrocpu-fetch.sh` refuses anything else).
+named in the top-level `scripts/retrocpu.pin`, by tag and SHA-256 (`scripts/retrocpu-fetch.sh` refuses anything else).
 
 | Path | What it is |
 | --- | --- |
 | `manifest.json` | The observation manifest of the `vm80a_sim` FST (`vm80a-fst`). |
 | `golden/` | The committed events of the two fixtures; `observe-test` compares against them. |
-| `lockstep-known.txt` | Differences between the core and Rivet's model that were investigated; anything else stops the run. |
-| `scripts/` | `retrocpu-fetch.sh` and its tamper test, `observe-test.sh`, `lockstep-programs.sh`, `rivet-tool.sh` (builds Rivet's seeded program generator from `rivet.pin`). |
+| `scripts/` | `observe-test.sh` and `lockstep-programs.sh`. |
 | `test/` | Unit tests of the manifest (no simulator needed). |
 
 ```sh
@@ -27,4 +26,4 @@ make lockstep-test    # seeded programs under vm80a_sim against the model; plant
   previous ALU instruction are still to come (they land in `T2`). `PC` is read as the fetch address.
 - `r16_hl` is the architectural `DE` until the first `XCHG` (see `xchg` above).
 - Rivet's model and the core agree on `8080PRE` and on 24 seeded programs, except the order of XTHL's two
-  stack writes (`lockstep-known.txt`).
+  stack writes (`observatory/lockstep-known.txt`).

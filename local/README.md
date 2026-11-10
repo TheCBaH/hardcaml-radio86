@@ -5,16 +5,17 @@ with the common observatory like any other core.
 
 | Path | What it is |
 | --- | --- |
-| `rtl/` | `i8080_rtl`: `Core` (datapath and sequencer), `Stimulus` (the K4 schedule), `Harness` (Cyclesim around the core with 64 KiB of RAM). |
+| `rtl/` | `i8080_rtl`: `Plan` (the machine cycles of each opcode), `Core` (datapath and sequencer, all 256 opcodes), `Stimulus` (the K4 schedule, `io` and `inta` included), `Harness` (Cyclesim around the core with 64 KiB of RAM, ports and the K5 shim). |
 | `trace/` | `i8080_rtl_trace`: the harness's samples as the observatory's frames (the pin trace of the run). |
-| `bin/` | `i8080_rtl_run`: runs a program, writes the `Vcd.wrap` waveform and the K4 pin trace, emits Verilog. |
+| `bin/` | `i8080_rtl_run`: `run` a program, `com` a CP/M `.COM` under the K5 shim, `verilog`; writes the `Vcd.wrap` waveform and the K4 pin trace. |
 | `manifest.json` | The observation manifest of the `Vcd.wrap` waveform (`hardcaml-vcd`). |
-| `scripts/rtl-test.sh` | The fixtures of the retrocpu release run through the core, then observed. |
-| `test/` | Unit tests of the core, the waveform and the observations of it. |
+| `scripts/` | `rtl-test.sh` (the release's fixtures, `io-console` and `8080PRE` on the core and on vm80a_sim) and `lockstep-programs.sh` (seeded programs against Rivet's model). |
+| `test/` | Unit tests: the cycle plan against Rivet's table, all 256 opcodes in lockstep with Rivet's model, the fixtures, the waveform and its observation. |
 
 ```sh
 make test-local   # the unit tests
-make rtl-test     # both fixtures, the hand traces, a faster clock, export and replay
+make rtl-test     # fixtures, 8080PRE and io-console against vm80a_sim, a faster clock, export and replay
+make rtl-lockstep-test
 ```
 
 ## The manifest of the Hardcaml core (`local/manifest.json`)

@@ -41,9 +41,10 @@ module Make (B : Hardcaml.Comb.S) = struct
       mux op [ left; right; left; right ] )
 
   let daa ~a ~ac ~c =
-    let lo = a.:[3, 0] >:. 9 |: ac and hi = a >:. 0x99 |: c in
+    (* the low nibble carries into the high one when it is above 9: then 6 is added and it overflows *)
+    let over = a.:[3, 0] >:. 9 in
+    let lo = over |: ac and hi = a >:. 0x99 |: c in
     let cor = mux2 hi (of_int ~width:4 6) (zero 4) @: mux2 lo (of_int ~width:4 6) (zero 4) in
     let res = a +: cor in
-    let ac = (uresize a.:[3, 0] 5 +: uresize cor.:[3, 0] 5).:(4) in
-    (res, of_result res ~ac ~c:hi)
+    (res, of_result res ~ac:over ~c:hi)
 end

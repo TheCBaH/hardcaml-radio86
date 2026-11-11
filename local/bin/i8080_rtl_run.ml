@@ -175,7 +175,7 @@ let com_cmd =
       $ Arg.(value & opt int 10_000_000 & info [ "max-tstates" ] ~docv:"N")
       $ io_out_arg $ vectors_arg)
 
-let verilog output testbench =
+let verilog output testbench bench =
   let module Circ = Hardcaml.Circuit.With_interface (Core.I) (Core.O) in
   let c = Circ.create_exn ~name:"i8080_core" Core.create in
   (match output with
@@ -184,9 +184,11 @@ let verilog output testbench =
       let oc = open_out_bin f in
       Hardcaml.Rtl.output ~output_mode:(To_channel oc) Verilog c;
       close_out oc);
-  Option.iter
-    (fun f -> Out_channel.with_open_bin f (fun oc -> output_string oc Vectors.testbench))
-    testbench
+  let write text =
+    Option.iter (fun f -> Out_channel.with_open_bin f (fun oc -> output_string oc text))
+  in
+  write Vectors.testbench testbench;
+  write Bench.verilog bench
 
 let verilog_cmd =
   Cmd.v
@@ -198,6 +200,13 @@ let verilog_cmd =
           value
           & opt (some string) None
           & info [ "testbench" ] ~docv:"FILE"
-              ~doc:"A testbench that replays the lines of --vectors into the core."))
+              ~doc:"A testbench that replays the lines of --vectors into the core.")
+      $ Arg.(
+          value
+          & opt (some string) None
+          & info [ "bench" ] ~docv:"FILE"
+              ~doc:
+                "A bench that runs a CP/M .COM under the K5 shim (+com=FILE), for Verilator or \
+                 Icarus Verilog."))
 
 let () = exit (Cmd.eval (Cmd.group (Cmd.info "i8080_rtl_run") [ run_cmd; com_cmd; verilog_cmd ]))

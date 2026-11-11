@@ -19,6 +19,8 @@ if [ -s "$out/iverilog.log" ]; then
     echo "verilog-test: iverilog -Wall is not clean" >&2
     exit 1
 fi
+# Verilator's lint; COMBDLY is how Hardcaml writes a multiplexer (non-blocking in always @*)
+verilator --lint-only -Wall -Wno-COMBDLY --top-module i8080_core "$out/i8080_core.v"
 
 check() { # id
     vvp -n "$out/tb.vvp" "+vectors=$out/$1.vec" > "$out/$1.tb.txt"

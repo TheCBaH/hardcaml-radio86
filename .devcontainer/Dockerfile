@@ -4,6 +4,7 @@ RUN set -eux;\
     env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends\
   ca-certificates\
   curl\
+  g++\
   gcc\
   git\
   iverilog\
@@ -13,6 +14,7 @@ RUN set -eux;\
   pkg-config\
   python3\
   unzip\
+  verilator\
   xz-utils\
 ;\
     apt-get clean -y; rm -rf /var/lib/apt/lists/*;\

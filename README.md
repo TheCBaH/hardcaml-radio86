@@ -89,7 +89,7 @@ make rtl-lockstep-test   # Rivet's seeded programs on the core, in lockstep with
 - `vm80a_sim` and the exerciser images come from the
   [devcontainer.retrocpu-tools](https://github.com/TheCBaH/devcontainer.retrocpu-tools) release named in
   `scripts/retrocpu.pin`, by tag and SHA-256 (`scripts/retrocpu-fetch.sh` refuses anything else). No
-  simulator, assembler or Verilator is built here; Icarus Verilog is the image's Debian package.
+  simulator or assembler is built here; Icarus Verilog and Verilator are the image's Debian packages.
 
 ## Tests
 
@@ -101,6 +101,11 @@ programs of 150 units under `vm80a_sim`, against the model; a planted bug must b
 core's fixtures, then `io-console`, the interrupt fixtures, a HOLD schedule and `8080PRE` run on both cores: the
 same OUTs, T-states, bus transfers and instructions, and for HOLD and INT the same control pins in every T-state), `verilog-test` (the emitted Verilog under Icarus Verilog: the generated testbench replays the
 inputs of Cyclesim's runs and compares every output in every clock cycle) and `rtl-lockstep-test` (the same seeded programs on the Hardcaml core).
+
+`make exerciser-test` is not part of `make ci` (about half an hour of one core; the `exerciser` workflow runs
+it when the RTL changes): `8080EX1` on the emitted Verilog under Verilator, with the bench that
+`i8080_rtl_run verilog --bench` writes (RAM, the K5 shim, the console). 25 of 25 groups `OK` in 23,803,352,043
+T-states, the count of Rivet's model and of `vm80a_sim`.
 
 `observatory/lockstep-known.txt` lists the differences between the core and the model that were investigated;
 anything else stops the run.

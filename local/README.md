@@ -5,7 +5,7 @@ with the common observatory like any other core.
 
 | Path | What it is |
 | --- | --- |
-| `rtl/` | `i8080_rtl`: `Plan` (the machine cycles of each opcode), `Alu` (the arithmetic, over any `Comb.S`), `Core` (datapath and sequencer, all 256 opcodes), `Stimulus` (the K4 schedule, `io` and `inta` included), `Harness` (Cyclesim around the core with 64 KiB of RAM, ports and the K5 shim). |
+| `rtl/` | `i8080_rtl`: `Plan` (the machine cycles of each opcode), `Alu` (the arithmetic, over any `Comb.S`), `Vectors` and `Bench` (the Verilog testbenches), `Core` (datapath and sequencer, all 256 opcodes), `Stimulus` (the K4 schedule, `io` and `inta` included), `Harness` (Cyclesim around the core with 64 KiB of RAM, ports and the K5 shim). |
 | `trace/` | `i8080_rtl_trace`: the harness's samples as the observatory's frames (the pin trace of the run). |
 | `bin/` | `i8080_rtl_run`: `run` a program, `com` a CP/M `.COM` under the K5 shim, `verilog`; writes the `Vcd.wrap` waveform and the K4 pin trace. |
 | `manifest.json` | The observation manifest of the `Vcd.wrap` waveform (`hardcaml-vcd`). |
@@ -17,6 +17,7 @@ make test-local   # the unit tests
 make rtl-test     # fixtures, 8080PRE and io-console against vm80a_sim, a faster clock, export and replay
 make verilog-test # the emitted Verilog replays Cyclesim's runs: same outputs in every clock cycle
 make rtl-lockstep-test
+make exerciser-test # 8080EX1 on the emitted Verilog under Verilator (about half an hour)
 ```
 
 ## HOLD and INT

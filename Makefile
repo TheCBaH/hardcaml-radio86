@@ -6,7 +6,7 @@ RIVET_TOOL = scripts/rivet-tool.sh
 SEEDS ?= 24
 UNITS ?= 150
 
-.PHONY: deps versions build test test-observatory test-vm80a test-local test-workloads workloads-vm80a fmt fmt-check fetch observe-test rtl-test verilog-test lockstep-test rtl-lockstep-test pin-check ci clean
+.PHONY: deps versions build test test-observatory test-vm80a test-local test-workloads workloads-vm80a fmt fmt-check fetch observe-test rtl-test verilog-test exerciser-test lockstep-test rtl-lockstep-test pin-check ci clean
 
 deps:
 	opam install . --deps-only --with-test -y
@@ -61,6 +61,10 @@ rtl-test: build
 # The emitted Verilog under Icarus Verilog, cycle by cycle against Cyclesim.
 verilog-test: build
 	local/scripts/verilog-test.sh "$$($(FETCH) $(RETROCPU))"
+
+# 8080EX1 on the emitted Verilog under Verilator: about half an hour of one core, so not part of ci.
+exerciser-test: build
+	local/scripts/exerciser-test.sh "$$($(FETCH) $(RETROCPU))"
 
 # Rivet's seeded programs (i8080_tool built from the pinned Rivet commit) under vm80a_sim,
 # in lockstep with the model; a planted model bug must be caught.

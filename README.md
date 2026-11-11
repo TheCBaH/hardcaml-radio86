@@ -63,6 +63,7 @@ the state only, and the observation ports (`sample`, `acc`, `bc`.. `pc`, `wz`, t
 | Module | What it does |
 | --- | --- |
 | `Plan` | Per opcode: the machine cycles the pins show (status word, T-states, address source). DAD's idle cycles and the fifth state of PUSH, CALL, RST, Rcc and XTHL's last write are extra T-states of the cycle before, as on vm80a. Pure data, tested against Rivet's table. |
+| `Alu` | The arithmetic as functions over any `Comb.S`: the ALU, INR/DCR, the rotates, DAA and the flag byte. The core instantiates them on signals; the tests evaluate them on `Bits` for every input against Rivet's model. |
 | `Core` | The datapath and sequencer (`local/rtl/core.ml`): register file, ALU, flags, DAA, stack, calls, hold and interrupt acknowledge. A cycle's effects happen in its last T-state. |
 | `Stimulus` | The K4 stimulus schedule: `ready`, `hold`, `int`, `reset` from a sample or a machine cycle (`m5+1`), `io` bytes per port and `inta` bytes. |
 | `Harness` | Cyclesim around the core with 64 KiB of RAM and I/O ports: runs a program (optionally the K5 shim behind the release's boot preamble), stops at the halt cycle or after an OUT to a stop port, counts T-states (K2), records writes and OUTs and the K4 pin trace, and writes the `Vcd.wrap` waveform. |
@@ -92,8 +93,8 @@ make rtl-lockstep-test   # Rivet's seeded programs on the core, in lockstep with
 
 ## Tests
 
-`make ci`: format check, build, unit tests (ppx_expect, no simulator needed; they include all 256 opcodes of the
-core, from three starting states, replayed in Rivet's model), `observe-test` (the
+`make ci`: format check, build, unit tests (ppx_expect, no simulator needed; they include every input of
+the core's ALU against Rivet's model and all 256 opcodes of the core, from three starting states, replayed in Rivet's model), `observe-test` (the
 MVI/STA/HLT fixtures against the K4 hand traces and the committed events, a manifest that names a missing
 path, `8080PRE` in lockstep with planted model bugs, byte-exact replay) and `lockstep-test` (24 seeded
 programs of 150 units under `vm80a_sim`, against the model; a planted bug must be caught), `rtl-test` (the Hardcaml

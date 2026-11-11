@@ -11,6 +11,7 @@
    registers that effect has just written. *)
 open Hardcaml
 open Signal
+module A = Alu.Make (Signal)
 
 module I = struct
   type 'a t = {
@@ -69,8 +70,6 @@ let t4 = 5
 let twh = 6
 let thold = 7
 let reset_flags = 0x02
-let parity x = ~:(List.fold_left ( ^: ) gnd (bits_msb x))
-let is_zero x = x ==:. 0
 
 let create (i : _ I.t) =
   (* RESET is the synchronous clear of every register: it does not wait for [tick] *)
@@ -159,47 +158,16 @@ let create (i : _ I.t) =
         when_ (sel ==:. 3) [ sp <-- value ];
       ]
   in
-  let flag n = (v flags).:[n, n] in
-  let fz = flag 6 and fs = flag 7 and fp = flag 2 and fc = flag 0 and fac = flag 4 in
-  let pack ~s ~z ~ac ~p ~c = concat_msb [ s; z; gnd; ac; gnd; p; vdd; c ] in
-  let flags_of res ~ac ~c = pack ~s:res.:[7, 7] ~z:(is_zero res) ~ac ~p:(parity res) ~c in
+  let f = A.unpack (v flags) in
+  let fz = f.z and fs = f.s and fp = f.p and fc = f.c and fac = f.ac in
   let cond = mux d3 [ ~:fz; fz; ~:fc; fc; ~:fp; fp; ~:fs; fs ] in
-  (* the ALU: ADD ADC SUB SBB ANA XRA ORA CMP, the bits 5..3 of the opcode *)
+  (* the arithmetic ({!Alu}); operand 6 is the byte just read, an immediate included *)
   let a = v ra in
-  let y = mux2 is_alu_i (v dlat) (get8 r3) in
-  let alu_sub = d_is 2 ||: d_is 3 ||: d_is 7 in
-  let alu_logic = d_is 4 ||: d_is 5 ||: d_is 6 in
-  let cin = mux d3 [ gnd; fc; vdd; ~:fc; gnd; gnd; gnd; vdd ] in
-  let yin = mux2 alu_sub ~:y y in
-  let sum9 = uresize a 9 +: uresize yin 9 +: uresize cin 9 in
-  let sum = sum9.:[7, 0] in
-  let sum_ac = a.:[4, 4] ^: yin.:[4, 4] ^: sum.:[4, 4] in
-  let sum_c = mux2 alu_sub ~:(sum9.:[8, 8]) sum9.:[8, 8] in
-  let alu_res = mux d3 [ sum; sum; sum; sum; a &: y; a ^: y; a |: y; sum ] in
-  let alu_ac = mux2 (d_is 4) (a.:[3, 3] |: y.:[3, 3]) (mux2 alu_logic gnd sum_ac) in
-  let alu_c = mux2 alu_logic gnd sum_c in
-  let alu_flags = flags_of alu_res ~ac:alu_ac ~c:alu_c in
-  (* INR and DCR, on the register named by bits 5..3 or the byte just read *)
-  let incdec_src = get8 d3 in
-  let incdec_res = mux2 (r_is 4) (incdec_src +:. 1) (incdec_src -:. 1) in
-  let incdec_ac = mux2 (r_is 4) (incdec_src.:[3, 0] ==:. 0xf) ~:(incdec_src.:[3, 0] ==:. 0) in
-  let incdec_flags = flags_of incdec_res ~ac:incdec_ac ~c:fc in
-  (* RLC RRC RAL RAR *)
-  let left_c = a.:[7, 7] and right_c = a.:[0, 0] in
-  let rot_res =
-    mux d3.:[1, 0] [ a.:[6, 0] @: left_c; right_c @: a.:[7, 1]; a.:[6, 0] @: fc; fc @: a.:[7, 1] ]
-  in
-  let rot_c = mux d3.:[1, 0] [ left_c; right_c; left_c; right_c ] in
-  (* DAA *)
-  let lo_adj = a.:[3, 0] >:. 9 ||: fac and hi_adj = a >:. 0x99 ||: fc in
-  let daa_cor =
-    mux2 hi_adj
-      (mux2 lo_adj (of_int ~width:8 0x66) (of_int ~width:8 0x60))
-      (mux2 lo_adj (of_int ~width:8 0x06) (zero 8))
-  in
-  let daa_res = a +: daa_cor in
-  let daa_ac = (uresize a.:[3, 0] 5 +: uresize daa_cor.:[3, 0] 5).:[4, 4] in
-  let daa_flags = flags_of daa_res ~ac:daa_ac ~c:hi_adj in
+  let alu_res, alu_f = A.alu ~op:d3 ~a ~y:(get8 r3) ~c:fc in
+  let incdec_res, incdec_f = A.incdec ~dec:(r_is 5) ~x:(get8 d3) ~c:fc in
+  let rot_res, rot_c = A.rotate ~op:d3.:[1, 0] ~a ~c:fc in
+  let daa_res, daa_f = A.daa ~a ~ac:fac ~c:fc in
+  let alu_flags = A.pack alu_f and incdec_flags = A.pack incdec_f and daa_flags = A.pack daa_f in
   let dad17 = uresize hl 17 +: uresize (get_pair rp) 17 in
   (* what a write cycle puts on the data bus *)
   let push_hi = mux rp [ v rb; v rd; v rh; v ra ]
@@ -297,7 +265,7 @@ let create (i : _ I.t) =
   let sp_pop = Always.[ sp <-- v sp +:. 1 ] and sp_push = Always.[ sp <-- v sp -:. 1 ] in
   let take = ~:(is_jcc ||: is_ccc) ||: cond in
   let wz16 = is_lxi ||: (is_ld_st &&: d3.:[2, 2]) ||: is_jcc ||: is_jmp ||: is_ccc ||: is_call in
-  let other_flags_unchanged ~c = pack ~s:fs ~z:fz ~ac:fac ~p:fp ~c in
+  let other_flags_unchanged ~c = A.pack { f with c } in
   let alu_now =
     at 0 &&: is_alu_r &&: ~:(r_is 6) ||: (at 1 &&: (is_alu_r &&: r_is 6 ||: is_alu_i))
   in

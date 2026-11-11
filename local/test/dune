@@ -13,4 +13,6 @@
   hwfrp
   hwfrp.native
   i8080_workloads
-  rivet.i8080_ops))
+  rivet.i8080_ops
+  rivet.i8080_sem
+  rivet.compute))

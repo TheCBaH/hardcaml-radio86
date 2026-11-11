@@ -5,12 +5,12 @@ with the common observatory like any other core.
 
 | Path | What it is |
 | --- | --- |
-| `rtl/` | `i8080_rtl`: `Plan` (the machine cycles of each opcode), `Core` (datapath and sequencer, all 256 opcodes), `Stimulus` (the K4 schedule, `io` and `inta` included), `Harness` (Cyclesim around the core with 64 KiB of RAM, ports and the K5 shim). |
+| `rtl/` | `i8080_rtl`: `Plan` (the machine cycles of each opcode), `Alu` (the arithmetic, over any `Comb.S`), `Core` (datapath and sequencer, all 256 opcodes), `Stimulus` (the K4 schedule, `io` and `inta` included), `Harness` (Cyclesim around the core with 64 KiB of RAM, ports and the K5 shim). |
 | `trace/` | `i8080_rtl_trace`: the harness's samples as the observatory's frames (the pin trace of the run). |
 | `bin/` | `i8080_rtl_run`: `run` a program, `com` a CP/M `.COM` under the K5 shim, `verilog`; writes the `Vcd.wrap` waveform and the K4 pin trace. |
 | `manifest.json` | The observation manifest of the `Vcd.wrap` waveform (`hardcaml-vcd`). |
 | `scripts/` | `rtl-test.sh` (the release's fixtures, `io-console` and `8080PRE` on the core and on vm80a_sim), `verilog-test.sh` (the emitted Verilog under Icarus Verilog, every clock cycle against Cyclesim) and `lockstep-programs.sh` (seeded programs against Rivet's model). |
-| `test/` | Unit tests: the cycle plan against Rivet's table, all 256 opcodes in lockstep with Rivet's model, the fixtures, the waveform and its observation. |
+| `test/` | Unit tests: the cycle plan against Rivet's table, the ALU on `Bits` for every input against Rivet's model, all 256 opcodes in lockstep with Rivet's model, the fixtures, the waveform and its observation. |
 
 ```sh
 make test-local   # the unit tests

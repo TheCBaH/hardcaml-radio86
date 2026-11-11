@@ -12,4 +12,5 @@
   i8080_rtl_trace
   hwfrp
   hwfrp.native
+  i8080_workloads
   rivet.i8080_ops))

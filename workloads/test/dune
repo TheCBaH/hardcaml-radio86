@@ -1,0 +1,6 @@
+(library
+ (name workloads_test)
+ (inline_tests)
+ (preprocess
+  (pps ppx_expect))
+ (libraries i8080_workloads rivet.i8080_asm qcheck-core))

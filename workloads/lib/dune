@@ -1,0 +1,6 @@
+; The workloads: authored files (oracle, fixture, drivers, runner) and, one file each, the ports of
+; third-party routines (ackermann, mul16, div32x16r), whose headers name their origin and licence.
+
+(library
+ (name i8080_workloads)
+ (libraries rivet.compute rivet.foundation rivet.i8080_asm rivet.i8080_sem))

@@ -1,0 +1,3 @@
+(executable
+ (name workload_files)
+ (libraries i8080_workloads))

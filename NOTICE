@@ -4,4 +4,10 @@ unmodified and carries its notice and licence text.
 
 hwfrp (TheCBaH/coralview) and Rivet (TheCBaH/rivet) are MIT-licensed dependencies installed as opam pins.
 
-Everything in this repository is under the MIT License in LICENSE.md.
+workloads/upstream/ holds verbatim copies of third-party 8080 sources with their licences and
+the ports in (workloads/lib/ackermann.ml, mul16.ml, div32x16r.ml) translate them to OCaml
+builder calls: Rosetta Code's Ackermann function (GNU Free Documentation License 1.2) and litwr2's
+rosetta-pi-spigot (GNU General Public License 2.0). Those files keep their own licences, named in their headers
+and in workloads/upstream/PROVENANCE.md.
+
+Everything else in this repository is under the MIT License in LICENSE.md.

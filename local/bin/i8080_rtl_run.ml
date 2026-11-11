@@ -63,8 +63,8 @@ let run image hex origin stim tick_every vcd pin_trace max_tstates vectors boot 
   let oc = Option.map open_out_bin vcd in
   let r =
     with_vectors vectors (fun probe ->
-        Harness.run ~tick_every ~max_tstates ?vcd:oc ?probe ~stim ~in_default ~stop_ports ?boot
-          ~halt_stop:(not no_halt_stop) ~memory ())
+        Harness.run ~tick_every ~max_tstates ~record:(pin_trace <> None) ?vcd:oc ?probe ~stim
+          ~in_default ~stop_ports ?boot ~halt_stop:(not no_halt_stop) ~memory ())
   in
   Option.iter close_out oc;
   Option.iter
@@ -140,8 +140,8 @@ let com file hex stim in_default tick_every vcd pin_trace max_tstates io_out vec
   let oc = Option.map open_out_bin vcd in
   let r =
     with_vectors vectors (fun probe ->
-        Harness.run ~tick_every ~max_tstates ?vcd:oc ?probe ~stim ~in_default ~stop_ports:[ 0xff ]
-          ~boot:Harness.com_boot ~memory ())
+        Harness.run ~tick_every ~max_tstates ~record:(pin_trace <> None) ?vcd:oc ?probe ~stim
+          ~in_default ~stop_ports:[ 0xff ] ~boot:Harness.com_boot ~memory ())
   in
   Option.iter close_out oc;
   Option.iter

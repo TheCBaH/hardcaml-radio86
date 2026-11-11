@@ -85,10 +85,12 @@ let com_boot =
 (* [tick_every] > 1 runs the implementation clock faster than the T-state: the CPU advances only in the
    cycle where [tick] is high, the inputs are held in the others. [halt_samples] is how many halted (or
    stopped) samples to record after the first; with [halt_stop] false the halt cycle does not end the
-   run (an interrupt may). [probe] sees every clock cycle: the inputs
+   run (an interrupt may). [on_sample] sees every T-state as it ends; with [record] false the samples
+   are not kept (the result's list is empty), so a run of any length needs constant memory. [probe] sees every clock cycle: the inputs
    applied and the outputs before the edge. *)
-let run ?(tick_every = 1) ?(halt_samples = 2) ?(halt_stop = true) ?(max_tstates = 100_000) ?vcd
-    ?probe ?(stim = Stimulus.empty) ?(in_default = 0xff) ?(stop_ports = []) ?boot ~memory () =
+let run ?(tick_every = 1) ?(halt_samples = 2) ?(halt_stop = true) ?(max_tstates = 100_000)
+    ?(record = true) ?on_sample ?vcd ?probe ?(stim = Stimulus.empty) ?(in_default = 0xff)
+    ?(stop_ports = []) ?boot ~memory () =
   if tick_every < 1 then invalid_arg "Harness.run: tick_every";
   let sim = Sim.create Core.create in
   let sim = match vcd with Some oc -> Vcd.wrap oc sim | None -> sim in
@@ -110,12 +112,25 @@ let run ?(tick_every = 1) ?(halt_samples = 2) ?(halt_stop = true) ?(max_tstates 
   let t1s = Hashtbl.create 16 in
   let cycles = ref (-1) in
   let first_sync = ref None and halted_at = ref None in
-  let stop_at = ref None and stopped = ref None in
-  let stop = ref None in
+  (* an OUT to a stop port: the port, then the first sample after its WR pulse *)
+  let stop_port = ref None and stop_at = ref None in
+  let stop = ref false in
   let pins = ref idle_pins in
   let din = ref 0 and prev_dbin = ref false in
   let kind = ref `Mem_read in
-  let in_used = Hashtbl.create 4 and inta_used = ref 0 in
+  let in_bytes = Hashtbl.create 4 in
+  List.iter
+    (fun (p, b) ->
+      Hashtbl.replace in_bytes p (Option.value (Hashtbl.find_opt in_bytes p) ~default:[] @ b))
+    stim.io;
+  let inta = ref stim.inta in
+  let next r =
+    match !r with
+    | [] -> None
+    | x :: l ->
+        r := l;
+        Some x
+  in
   let n = ref 0 in
   let commit_write () =
     match !pending with
@@ -123,14 +138,15 @@ let run ?(tick_every = 1) ?(halt_samples = 2) ?(halt_stop = true) ?(max_tstates 
         (match kind with
         | `Out ->
             io_out := (addr land 0xff, data) :: !io_out;
-            if List.mem (addr land 0xff) stop_ports && !stop_at = None then stop_at := Some (-1)
+            if List.mem (addr land 0xff) stop_ports && !stop_port = None then
+              stop_port := Some (addr land 0xff)
         | _ ->
             Bytes.set memory addr (Char.chr data);
             writes := { at; addr; data } :: !writes);
         pending := None
     | None -> ()
   in
-  while !stop = None && !n < max_tstates do
+  while (not !stop) && !n < max_tstates do
     let k = !n in
     let a, dout, dout_en, sync, dbin, wr_n, wait = !pins in
     if sync then begin
@@ -168,15 +184,11 @@ let run ?(tick_every = 1) ?(halt_samples = 2) ?(halt_stop = true) ?(max_tstates 
       | `In ->
           if not !prev_dbin then begin
             let port = a land 0xff in
-            let used = Option.value (Hashtbl.find_opt in_used port) ~default:0 in
-            Hashtbl.replace in_used port (used + 1);
-            din := Option.value (Stimulus.io_byte stim ~port ~n:used) ~default:in_default
+            let left = ref (Option.value (Hashtbl.find_opt in_bytes port) ~default:[]) in
+            din := Option.value (next left) ~default:in_default;
+            Hashtbl.replace in_bytes port !left
           end
-      | `Inta ->
-          if not !prev_dbin then begin
-            din := Option.value (List.nth_opt stim.inta !inta_used) ~default:in_default;
-            incr inta_used
-          end
+      | `Inta -> if not !prev_dbin then din := Option.value (next inta) ~default:in_default
       | _ -> din := Char.code (Bytes.get memory a)
       end;
     (match (wr_n, dout_en) with
@@ -225,12 +237,10 @@ let run ?(tick_every = 1) ?(halt_samples = 2) ?(halt_stop = true) ?(max_tstates 
       end
     done;
     let s = Option.get !first in
-    samples := s :: !samples;
+    if record then samples := s :: !samples;
+    Option.iter (fun f -> f s) on_sample;
     if halt_stop && s.tstate = Core.twh && !halted_at = None then halted_at := Some k;
-    (* an OUT to a stop port ends the run at the first sample after its WR pulse *)
-    (match !stop_at with
-    | Some -1 when wr_n -> stop_at := Some k
-    | _ -> ());
+    if !stop_port <> None && !stop_at = None && wr_n then stop_at := Some k;
     prev_dbin := dbin;
     pins := pins_of after;
     incr n;
@@ -238,25 +248,24 @@ let run ?(tick_every = 1) ?(halt_samples = 2) ?(halt_stop = true) ?(max_tstates 
     let ends =
       match (!halted_at, !stop_at) with
       | Some h, _ -> Some (h + halt_samples)
-      | _, Some k' when k' >= 0 -> Some (k' + halt_samples - 1)
+      | _, Some k' -> Some (k' + halt_samples - 1)
       | _ -> None
     in
-    match ends with Some e when k >= e -> stop := Some () | _ -> ()
+    match ends with Some e when k >= e -> stop := true | _ -> ()
   done;
   commit_write ();
-  ignore stopped;
   let samples = List.rev !samples in
-  let pre_sync = Option.value !first_sync ~default:(List.length samples) in
+  let pre_sync = Option.value !first_sync ~default:!n in
   let stop_reason =
-    match (!halted_at, !stop_at) with
-    | Some _, _ -> Halt
-    | _, Some _ -> ( match !io_out with (p, _) :: _ -> Port p | [] -> Budget)
+    match (!halted_at, !stop_port, !stop_at) with
+    | Some _, _, _ -> Halt
+    | _, Some p, Some _ -> Port p
     | _ -> Budget
   in
   let counted =
     match (!halted_at, !stop_at) with
     | Some h, _ -> Some (h - pre_sync + 1)
-    | _, Some s when s >= 0 -> Some (s - pre_sync)
+    | _, Some s -> Some (s - pre_sync)
     | _ -> None
   in
   {

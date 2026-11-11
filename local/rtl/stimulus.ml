@@ -75,12 +75,6 @@ let parse text =
   in
   go empty (List.mapi (fun i l -> (i + 1, l)) (String.split_on_char '\n' text))
 
-(* The byte the [n]th IN from [port] reads, [None] when the schedule has no more for it. *)
-let io_byte (t : t) ~port ~n =
-  List.nth_opt
-    (List.concat (List.filter_map (fun (p, b) -> if p = port then Some b else None) t.io))
-    n
-
 (* [t1 c] is the sample of the SYNC that opens machine cycle [c], once seen. The value of a signal in
    sample [n] is the latest statement that starts at or before [n]; a statement anchored on a cycle
    whose T1 is not yet known has not started. *)

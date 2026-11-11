@@ -83,7 +83,7 @@ make rtl-lockstep-test   # Rivet's seeded programs on the core, in lockstep with
 
 ## Pins, nothing built
 
-- hwfrp (coralview `5ff364d`, on `main`) and Rivet (`ed835b2`) are opam pins, in `.devcontainer/devcontainer.json`
+- hwfrp (coralview `5ff364d`, on `main`) and Rivet (`0398629`) are opam pins, in `.devcontainer/devcontainer.json`
   and `hardcaml-radio86.opam.template`. `make pin-check` keeps the Rivet commit in agreement with
   `scripts/rivet.pin`, from which `scripts/rivet-tool.sh` builds Rivet's seeded program generator.
 - `vm80a_sim` and the exerciser images come from the

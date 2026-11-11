@@ -8,5 +8,5 @@ pin-depends: [
   ["ovcd.dev" "git+https://github.com/TheCBaH/ovcd.git#d24473baee9b6df8255b9a464cee60c643cb5bfd"]
   ["err_trace.0.1.0" "git+https://github.com/TheCBaH/err_trace.git#1c7a6ba94c81c70008c594c709e7d37feb38f435"]
   ["hwfrp.dev" "git+https://github.com/TheCBaH/coralview.git#5ff364d51952d98224a27ec233983f167aa350c8"]
-  ["rivet.dev" "git+https://github.com/TheCBaH/rivet.git#ed835b23860931ebc714b3edc19468cdc796c169"]
+  ["rivet.dev" "git+https://github.com/TheCBaH/rivet.git#039862960ea8ca8655dd11398bddbf25aefcafc7"]
 ]

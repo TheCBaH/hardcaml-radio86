@@ -1,4 +1,4 @@
 # The Rivet commit that the opam pin (devcontainer.json, hardcaml-radio86.opam.template) installs and
 # that scripts/rivet-tool.sh builds i8080_tool from (the seeded program generator and assembler of A10).
 RIVET_REPO=https://github.com/TheCBaH/rivet.git
-RIVET_COMMIT=ed835b23860931ebc714b3edc19468cdc796c169
+RIVET_COMMIT=039862960ea8ca8655dd11398bddbf25aefcafc7

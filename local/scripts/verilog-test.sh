@@ -1,8 +1,8 @@
 #!/bin/sh
 # The emitted Verilog under Icarus Verilog against Cyclesim: every clock cycle of a run (the inputs the
 # harness applied, the outputs Cyclesim showed) is replayed into i8080_core by the generated testbench.
-# The runs are the fixtures (one on a faster implementation clock, one with a reset in the middle),
-# io-console and 8080PRE.
+# The runs are the fixtures (one on a faster implementation clock, one with a reset in the middle, one
+# with HOLD), an interrupt out of a halt, io-console and 8080PRE.
 # usage: verilog-test.sh <release dir printed by retrocpu-fetch.sh>
 set -eu
 rel=$(echo "$1"/retrocpu-vm80a-sim-*)
@@ -37,6 +37,13 @@ printf 'reset 0 @4\nreset 1 @14\nreset 0 @17\n' > "$out/reset.stim"
 $run run --hex --image "$fx/mvi-sta-hlt.run.img" --stim "$out/reset.stim" --tick-every 2 \
     --vectors "$out/reset.vec" > /dev/null
 check reset
+printf 'reset 0 @4\nhold 1 @6\nhold 0 @12\nhold 1 @27\nhold 0 @33\n' > "$out/hold.stim"
+$run run --hex --image "$fx/mvi-sta-hlt.run.img" --stim "$out/hold.stim" --tick-every 2 \
+    --vectors "$out/hold.vec" > /dev/null
+check hold
+$run run --hex --image "$fx/inta-call.run.img" --stim "$fx/inta-call.run.stim" --boot "$fx/inta-call.run.boot" \
+    --boot-pc 0x100 --stop-port 0xff --no-halt-stop --vectors "$out/inta-call.vec" > /dev/null
+check inta-call
 $run com --hex "$fx/io-console.run.img" --stim "$fx/io-console.run.stim" --in-default 0xaa \
     --vectors "$out/io-console.vec" > /dev/null
 check io-console

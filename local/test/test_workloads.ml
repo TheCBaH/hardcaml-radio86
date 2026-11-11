@@ -23,7 +23,7 @@ let run_core ?vcd (t : Fixture.t) =
   ( r,
     {
       Fixture.halted = r.stop = Harness.Halt;
-      trapped = r.trapped <> None;
+      trapped = false;
       tstates = Option.value r.counted ~default:max_int;
       writes = List.map (fun (w : Harness.write) -> (w.addr, w.data)) r.writes;
       port_traffic = port_traffic r;

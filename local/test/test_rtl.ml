@@ -10,11 +10,11 @@ module Pipeline = I8080_trace.Pipeline
 module Export = I8080_trace.Export
 module Lockstep = I8080_trace.Lockstep
 
-let run_program ?tick_every ?(stim = Fixture.nowait) program =
+let run_program ?tick_every ?halt_stop ?max_tstates ?(stim = Fixture.nowait) program =
   let memory = Harness.new_memory () in
   Harness.load_program memory ~origin:0 program;
   let stim = match Stimulus.parse stim with Ok s -> s | Error e -> failwith e in
-  Harness.run ?tick_every ~stim ~memory ()
+  Harness.run ?tick_every ?halt_stop ?max_tstates ~stim ~memory ()
 
 let writes (r : Harness.result) =
   String.concat ","
@@ -76,16 +76,71 @@ let%expect_test "A is 2a after MVI and the registers hold their reset values" =
     n=7 acc=2a pc=0002
     n=26 acc=2a pc=0006 |}]
 
-let%expect_test "HOLD and INT are rejected, not ignored" =
-  List.iter
-    (fun (sigs, stim) ->
-      let r = run_program ~stim:("reset 0 @4\n" ^ stim) Fixture.program in
-      Printf.printf "%s: %s\n" sigs
-        (match r.trapped with Some (_, c) -> "trap, cause " ^ string_of_int c | None -> "no trap"))
-    [ ("hold", "hold 1 @m2+0\n"); ("int", "int 1 @m1+1\n") ];
-  [%expect {|
-    hold: trap, cause 2
-    int: trap, cause 2 |}]
+(* One word per T-state from the first SYNC: the status word at T1, r/w for a read or a write strobe,
+   W for WAIT, - otherwise; ^ marks HLDA and e INTE. *)
+let strip ?halt_stop ?(max_tstates = 60) ~stim program =
+  let r = run_program ?halt_stop ~max_tstates ~stim:("reset 0 @4\n" ^ stim) program in
+  let words =
+    List.filter_map
+      (fun (s : Harness.sample) ->
+        if s.n < r.pre_sync then None
+        else
+          let w =
+            if s.sync then Printf.sprintf "%02x" (Option.value s.dout ~default:0)
+            else if s.dbin then "r"
+            else if not s.wr_n then "w"
+            else if s.wait then "W"
+            else "-"
+          in
+          Some (w ^ (if s.hlda then "^" else "") ^ if s.inte then "e" else ""))
+      r.samples
+  in
+  print_endline (String.concat " " words)
+
+let%expect_test "HOLD: HLDA with T3 of a read and after T3 of a write, then idle until HOLD falls" =
+  (* MVI A,2a; STA 2000; HLT. HOLD in T2 of the first fetch, in T2 of the STA write, and for one
+     T-state only (HLDA for one T-state, no idle) *)
+  strip ~stim:"hold 1 @6\nhold 0 @12\n" Fixture.program;
+  strip ~stim:"hold 1 @23\nhold 0 @29\n" Fixture.program;
+  strip ~stim:"hold 1 @6\nhold 0 @7\n" Fixture.program;
+  (* in T1 or with READY low it is not taken; in the halt state HLDA follows HOLD *)
+  strip ~stim:"hold 1 @5\nhold 0 @6\n" Fixture.program;
+  strip ~stim:"ready 0 @6\nready 1 @9\nhold 1 @6\nhold 0 @8\n" Fixture.program;
+  strip ~halt_stop:false ~max_tstates:20 ~stim:"hold 1 @12\nhold 0 @15\n" "\x76";
+  [%expect
+    {|
+    a2 r -^ -^ -^ -^ -^ -^ 82 r - a2 r - - 82 r - 82 r - 00 - w a2 r - - 8a - W W W
+    a2 r - - 82 r - a2 r - - 82 r - 82 r - 00 - w -^ -^ -^ -^ -^ a2 r - - 8a - W W W
+    a2 r -^ - 82 r - a2 r - - 82 r - 82 r - 00 - w a2 r - - 8a - W W W
+    a2 r - - 82 r - a2 r - - 82 r - 82 r - 00 - w a2 r - - 8a - W W W
+    a2 r r r r - - 82 r - a2 r - - 82 r - 82 r - 00 - w a2 r - - 8a - W W W
+    a2 r - - 8a - W W W^ W^ W^ W W W W
+    |}]
+
+let%expect_test "INT: acknowledged after the instruction that follows EI, PC kept, INTE cleared" =
+  (* EI; NOP; NOP..., RST 7 supplied by INTA: 23, the return address 0002 pushed, then 0038 *)
+  let nops = "\xfb" ^ String.make 0x40 '\x00' in
+  strip ~max_tstates:32 ~stim:"inta ff\nint 1 @m0+3\nint 0 @m2+1\n" nops;
+  (* a CALL through INTA: its address bytes come with 03 *)
+  strip ~max_tstates:36 ~stim:"inta cd 20 00\nint 1 @m1+1\nint 0 @m2+1\n" nops;
+  (* not in the last T-state: missed. With INTE clear, or after DI: ignored *)
+  strip ~max_tstates:16 ~stim:"inta ff\nint 1 @m1+1\nint 0 @m1+2\n" nops;
+  strip ~max_tstates:16 ~stim:"inta ff\nint 1 @m1+1\n" (String.make 8 '\x00');
+  strip ~max_tstates:16 ~stim:"inta ff\nint 1 @m0+1\n" "\xfb\xf3\x00\x00\x00";
+  (* out of a halt: two more T-states, then the acknowledge cycle 2b *)
+  strip ~halt_stop:false ~max_tstates:34 ~stim:"inta ff\nint 1 @m2+3\nint 0 @m3+1\n" "\xfb\x76";
+  (* not while a HOLD is being acknowledged: the next instruction runs first *)
+  strip ~max_tstates:36 ~stim:"inta ff\nint 1 @m1+1\nhold 1 @10\nhold 0 @14\n" nops;
+  [%expect
+    {|
+    a2 r - - a2e re -e -e 23 r - - - 04 - w 04 - w a2 r - - a2 r - -
+    a2 r - - a2e re -e -e 23 r - - - 03 r - 03 r - 04 - w 04 - w a2 r - - a2 r
+    a2 r - - a2e re -e -e a2e re -e
+    a2 r - - a2 r - - a2 r -
+    a2 r - - a2e re -e -e a2 r -
+    a2 r - - a2e re -e -e 8ae -e We We We We 2b r - - - 04 - w 04 - w a2 r - -
+    a2 r - - a2e re -^e -^e -^e -^e a2e re -e -e 23 r - - - 04 - w 04 - w a2 r - - a2 r
+    |}]
 
 let%expect_test "RESET during a run restarts at 0000" =
   let stim = {|reset 0 @4
@@ -162,7 +217,7 @@ let%expect_test "the core elaborates, with its observation ports named" =
   [%expect
     {|
     in: clock:1 di:8 hold:1 int_req:1 ready:1 rst_in:1 tick:1
-    out: a:16 ac:1 acc:8 accept:1 bc:16 c:1 cycle:3 dbin:1 de:16 dout:8 dout_en:1 hl:16 hlda:1 inte:1 opcode:8 p:1 pc:16 s:1 sample:1 sp:16 sync:1 trap:1 trap_cause:2 tstate:3 wait_:1 wr_n:1 wz:16 z:1
+    out: a:16 ac:1 acc:8 accept:1 bc:16 c:1 cycle:3 dbin:1 de:16 dout:8 dout_en:1 hl:16 hlda:1 inte:1 opcode:8 p:1 pc:16 s:1 sample:1 sp:16 sync:1 tstate:3 wait_:1 wr_n:1 wz:16 z:1
     verilog: true
     |}]
 

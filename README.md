@@ -55,16 +55,15 @@ The manifest format is in [observatory/docs/manifest.md](observatory/docs/manife
 ## The Hardcaml core (`local/`)
 
 `i8080_rtl` (library, `local/rtl`) and `i8080_rtl_run` (command): the 8080 in Hardcaml v0.17.1 with **all 256
-opcodes** and I/O, on one sequencing ROM built from `Plan`, the bus-visible machine cycles of each opcode.
-`HOLD` and `INT` are not built: they stop the core in a fault state with a `trap_cause`, nothing is silently
-ignored (no `INTA` cycle, no `HLDA`). One enabled cycle is one T-state (`tick`), the pins are a function of
+opcodes**, I/O, `HOLD`/`HLDA` and `INT`/`INTA`, on one sequencing ROM built from `Plan`, the bus-visible
+machine cycles of each opcode. One enabled cycle is one T-state (`tick`), the pins are a function of
 the state only, and the observation ports (`sample`, `acc`, `bc`.. `pc`, `wz`, the flags, `tstate`, `cycle`,
-`accept`, `opcode`, `trap`) carry the register and control state.
+`accept`, `opcode`) carry the register and control state.
 
 | Module | What it does |
 | --- | --- |
 | `Plan` | Per opcode: the machine cycles the pins show (status word, T-states, address source). DAD's idle cycles and the fifth state of PUSH, CALL, RST, Rcc and XTHL's last write are extra T-states of the cycle before, as on vm80a. Pure data, tested against Rivet's table. |
-| `Core` | The datapath and sequencer (`local/rtl/core.ml`): register file, ALU, flags, DAA, stack, calls. A cycle's effects happen in its last T-state. |
+| `Core` | The datapath and sequencer (`local/rtl/core.ml`): register file, ALU, flags, DAA, stack, calls, hold and interrupt acknowledge. A cycle's effects happen in its last T-state. |
 | `Stimulus` | The K4 stimulus schedule: `ready`, `hold`, `int`, `reset` from a sample or a machine cycle (`m5+1`), `io` bytes per port and `inta` bytes. |
 | `Harness` | Cyclesim around the core with 64 KiB of RAM and I/O ports: runs a program (optionally the K5 shim behind the release's boot preamble), stops at the halt cycle or after an OUT to a stop port, counts T-states (K2), records writes and OUTs and the K4 pin trace, and writes the `Vcd.wrap` waveform. |
 
@@ -98,8 +97,8 @@ core, from three starting states, replayed in Rivet's model), `observe-test` (th
 MVI/STA/HLT fixtures against the K4 hand traces and the committed events, a manifest that names a missing
 path, `8080PRE` in lockstep with planted model bugs, byte-exact replay) and `lockstep-test` (24 seeded
 programs of 150 units under `vm80a_sim`, against the model; a planted bug must be caught), `rtl-test` (the Hardcaml
-core's fixtures, then `io-console` and `8080PRE` run on both cores: the same OUTs, T-states, bus transfers and
-instructions), `verilog-test` (the emitted Verilog under Icarus Verilog: the generated testbench replays the
+core's fixtures, then `io-console`, the interrupt fixtures, a HOLD schedule and `8080PRE` run on both cores: the
+same OUTs, T-states, bus transfers and instructions, and for HOLD and INT the same control pins in every T-state), `verilog-test` (the emitted Verilog under Icarus Verilog: the generated testbench replays the
 inputs of Cyclesim's runs and compares every output in every clock cycle) and `rtl-lockstep-test` (the same seeded programs on the Hardcaml core).
 
 `observatory/lockstep-known.txt` lists the differences between the core and the model that were investigated;

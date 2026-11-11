@@ -1,5 +1,4 @@
-(* The Intel 8080 in Hardcaml: all 256 opcodes, with I/O. The exceptions are HOLD and INT, which stop the
-   core in a fault state that says why; the interrupt-acknowledge cycles and HLDA are not built.
+(* The Intel 8080 in Hardcaml: all 256 opcodes, with I/O, HOLD/HLDA and INT/INTA.
 
    One enabled clock cycle is one T-state (K2). The pins are a function of the state registers only
    (Moore), so the values seen in the cycle that ends T-state k are the pins of T-state k together with
@@ -56,8 +55,6 @@ module O = struct
     cycle : 'a; [@bits 3]
     accept : 'a;  (** a bus transfer is accepted in this T-state (T3, or the first TWH) *)
     opcode : 'a; [@bits 8]  (** the last opcode accepted *)
-    trap : 'a;
-    trap_cause : 'a; [@bits 2]
   }
   [@@deriving hardcaml]
 end
@@ -70,10 +67,7 @@ let tw = 3
 let t3 = 4
 let t4 = 5
 let twh = 6
-let fault = 7
-
-(* trap causes *)
-let cause_input = 2
+let thold = 7
 let reset_flags = 0x02
 let parity x = ~:(List.fold_left ( ^: ) gnd (bits_msb x))
 let is_zero x = x ==:. 0
@@ -94,7 +88,8 @@ let create (i : _ I.t) =
   let ir = reg 8 and dlat = reg 8 and tmp = reg 8 and flags = reg ~clear_to:reset_flags 8 in
   let ra = reg 8 and rb = reg 8 and rc = reg 8 and rd = reg 8 and re = reg 8 in
   let rh = reg 8 and rl = reg 8 in
-  let inte = reg 1 and first_twh = reg 1 and cause = reg 2 in
+  let inte = reg 1 and first_twh = reg 1 in
+  let hlda = reg 1 and hacc = reg 1 and iack = reg 1 and from_halt = reg 1 and hexit = reg 2 in
   let v = Always.Variable.value in
   let in_t n = v t ==:. n in
   let irv = v ir and cycv = v cyc in
@@ -104,9 +99,18 @@ let create (i : _ I.t) =
       (List.init Plan.max_cycles (fun k ->
            mux irv (List.init 256 (fun op -> of_int ~width (field op k)))))
   in
-  let status = rom ~width:8 (fun op k -> (Plan.cycle op k).status) in
+  let rom_status = rom ~width:8 (fun op k -> (Plan.cycle op k).status) in
   let len = rom ~width:4 (fun op k -> (Plan.cycle op k).len) in
   let src = rom ~width:3 (fun op k -> Plan.src_code (Plan.cycle op k).src) in
+  (* an instruction that INTA supplies: its fetch is the acknowledge cycle (23, or 2b out of a halt), its
+     other bytes come with 03, and PC does not move *)
+  let status =
+    let c = of_int ~width:8 in
+    mux2
+      (v iack &: (cycv ==:. 0))
+      (mux2 (v from_halt) (c 0x2b) (c 0x23))
+      (mux2 (v iack &: (rom_status ==:. 0x82) &: (src ==:. 0)) (c 0x03) rom_status)
+  in
   let last = rom ~width:1 (fun op k -> if Plan.is_last op k then 1 else 0) in
   (* what the opcode is; [&:], [|:] and [==:] share one precedence level, so every mix is bracketed *)
   let hi2 = irv.:[7, 6] and r3 = irv.:[2, 0] and d3 = irv.:[5, 3] and rp = irv.:[5, 4] in
@@ -227,24 +231,64 @@ let create (i : _ I.t) =
   let early_end = is_rcc &&: cyc_is 0 ||: (is_ccc &&: cyc_is 2) &&: ~:cond in
   let finished = last ||: early_end in
   let fin = in_t t3 &&: (len ==:. 3) ||: (in_t t4 &&: (v xc ==:. 0)) in
+  (* HOLD is taken in T2 (or the last Tw) of a cycle: HLDA rises with T3 of a read and after T3 of a
+     write, the cycle runs to its end and the core then idles in [thold] until HOLD falls. HLDA follows
+     a HOLD that falls earlier, and the core goes on. *)
+  let hold_track =
+    Always.[ when_ (v hacc) [ hlda <-- i.hold; when_ ~:(i.hold) [ hacc <--. 0 ] ] ]
+  in
+  (* INT is sampled in the last T-state of an instruction, not after EI or DI and not while a HOLD is
+     being acknowledged *)
+  let int_take = i.int_req &&: v inte &&: ~:(is_ei ||: is_di) &&: ~:(v hacc) in
   let advance =
-    Always.[ when_ fin [ t <--. t1; if_ finished [ cyc <--. 0 ] [ cyc <-- cycv +:. 1 ] ] ]
+    Always.
+      [
+        when_ fin
+          [
+            if_ (v hacc &&: i.hold) [ t <--. thold ] [ t <--. t1 ];
+            if_ finished
+              [ cyc <--. 0; iack <-- int_take; from_halt <--. 0; when_ int_take [ inte <--. 0 ] ]
+              [ cyc <-- cycv +:. 1 ];
+          ];
+      ]
+  in
+  (* halted: HLDA follows HOLD; an INT with INTE set ends the halt two T-states later with an
+     acknowledge cycle *)
+  let halted =
+    Always.
+      [
+        hlda <-- i.hold;
+        if_
+          (v hexit ==:. 0)
+          [ when_ (i.int_req &&: v inte &&: ~:(v hlda)) [ hexit <--. 1 ] ]
+          [
+            if_
+              (v hexit ==:. 1)
+              [ hexit <--. 2 ]
+              [ hexit <--. 0; t <--. t1; cyc <--. 0; iack <--. 1; from_halt <--. 1; inte <--. 0 ];
+          ];
+      ]
   in
   (* T2 and each Tw: READY decides between T3 and one more wait; the halt cycle ignores it *)
   let wait_state =
     Always.
       [
         if_ halt_cycle
-          [ t <--. twh; first_twh <--. 1 ]
+          ([ t <--. twh; first_twh <--. 1 ] @ halted)
           [
             if_ i.ready
-              [ t <--. t3; when_ rd_like [ dlat <-- i.di ]; when_ (cyc_is 0) [ ir <-- i.di ] ]
+              [
+                t <--. t3;
+                when_ rd_like [ dlat <-- i.di ];
+                when_ (cyc_is 0) [ ir <-- i.di ];
+                when_ i.hold [ hacc <--. 1; when_ rd_like [ hlda <--. 1 ] ];
+              ]
               [ t <--. tw ];
           ];
       ]
   in
-  let t3_state = Always.[ when_ (len <>:. 3) [ t <--. t4; xc <-- len -:. 4 ] ] in
-  let t4_state = Always.[ when_ (v xc <>:. 0) [ xc <-- v xc -:. 1 ] ] in
+  let t3_state = Always.[ when_ (len <>:. 3) [ t <--. t4; xc <-- len -:. 4 ]; proc hold_track ] in
+  let t4_state = Always.[ when_ (v xc <>:. 0) [ xc <-- v xc -:. 1 ]; proc hold_track ] in
   (* the effects of a cycle, in its last T-state *)
   let at n = fin &&: cyc_is n in
   let pc_next = v dlat @: (v wz).:[7, 0] in
@@ -336,28 +380,24 @@ let create (i : _ I.t) =
   Always.(
     compile
       [
-        if_
-          (i.hold |: i.int_req &: ~:(in_t fault))
-          [ t <--. fault; cause <--. cause_input ]
+        switch (v t)
           [
-            switch (v t)
+            (of_int ~width:3 idle, [ t <--. t1; cyc <--. 0 ]);
+            ( of_int ~width:3 t1,
               [
-                (of_int ~width:3 idle, [ t <--. t1; cyc <--. 0 ]);
-                ( of_int ~width:3 t1,
-                  [
-                    t <--. t2;
-                    addr <-- a_now;
-                    when_ (rd_like &: (src_sel ==:. 0)) [ pc <-- v pc +:. 1 ];
-                  ] );
-                (of_int ~width:3 t2, wait_state);
-                (of_int ~width:3 tw, wait_state);
-                (of_int ~width:3 t3, t3_state);
-                (of_int ~width:3 t4, t4_state);
-                (of_int ~width:3 twh, [ first_twh <--. 0 ]);
-              ];
-            proc advance;
-            proc effects;
+                t <--. t2;
+                addr <-- a_now;
+                when_ (rd_like &: (src_sel ==:. 0) &: ~:(v iack)) [ pc <-- v pc +:. 1 ];
+              ] );
+            (of_int ~width:3 t2, wait_state);
+            (of_int ~width:3 tw, wait_state);
+            (of_int ~width:3 t3, t3_state);
+            (of_int ~width:3 t4, t4_state);
+            (of_int ~width:3 twh, (first_twh <--. 0) :: halted);
+            (of_int ~width:3 thold, [ when_ ~:(i.hold) [ t <--. t1; hlda <--. 0; hacc <--. 0 ] ]);
           ];
+        proc advance;
+        proc effects;
       ]);
   let sync = in_t t1 in
   let writing = wr_like &&: (in_t t2 ||: in_t tw ||: in_t t3) in
@@ -369,7 +409,7 @@ let create (i : _ I.t) =
     dbin = rd_like &&: (in_t t2 ||: in_t tw);
     wr_n = ~:(wr_like &&: (in_t tw ||: in_t t3));
     wait_ = in_t tw ||: in_t twh;
-    hlda = gnd;
+    hlda = v hlda;
     inte = v inte;
     sample = i.tick;
     acc = v ra;
@@ -388,6 +428,4 @@ let create (i : _ I.t) =
     cycle = v cyc;
     accept = in_t t3 ||: (in_t twh &&: (v first_twh ==:. 1));
     opcode = v ir;
-    trap = in_t fault;
-    trap_cause = v cause;
   }

@@ -38,7 +38,20 @@ let vectors_arg =
     & opt (some string) None
     & info [ "vectors" ] ~docv:"FILE" ~doc:"Inputs and expected outputs of every clock cycle.")
 
-let run image hex origin stim tick_every vcd pin_trace max_tstates vectors =
+let stop_name = function
+  | Harness.Halt -> "hlt"
+  | Port p -> Printf.sprintf "port %02x" p
+  | Budget -> "budget"
+
+let write_io_out file (r : Harness.result) =
+  Option.iter
+    (fun f ->
+      Out_channel.with_open_bin f (fun oc ->
+          List.iter (fun (p, b) -> Printf.fprintf oc "%02x %02x\n" p b) r.io_out))
+    file
+
+let run image hex origin stim tick_every vcd pin_trace max_tstates vectors boot boot_pc stop_ports
+    no_halt_stop in_default io_out =
   let memory = Harness.new_memory () in
   Harness.load_program memory ~origin (if hex then hex_image (read_file image) else read_file image);
   let stim =
@@ -46,26 +59,36 @@ let run image hex origin stim tick_every vcd pin_trace max_tstates vectors =
     | None -> die "a stimulus is needed: reset is held until the schedule releases it"
     | Some f -> ( match Stimulus.parse (read_file f) with Ok s -> s | Error e -> die "%s: %s" f e)
   in
+  let boot = Option.map (fun f -> { Harness.code = hex_image (read_file f); pc = boot_pc }) boot in
   let oc = Option.map open_out_bin vcd in
   let r =
     with_vectors vectors (fun probe ->
-        Harness.run ~tick_every ~max_tstates ?vcd:oc ?probe ~stim ~memory ())
+        Harness.run ~tick_every ~max_tstates ?vcd:oc ?probe ~stim ~in_default ~stop_ports ?boot
+          ~halt_stop:(not no_halt_stop) ~memory ())
   in
   Option.iter close_out oc;
   Option.iter
     (fun f -> Out_channel.with_open_bin f (fun oc -> output_string oc (Harness.pin_trace r)))
     pin_trace;
+  write_io_out io_out r;
   Printf.printf "tstates %s\n"
     (match r.counted with Some c -> string_of_int c | None -> "none (the run did not halt)");
+  Printf.printf "stop %s\n" (stop_name r.stop);
   List.iter
     (fun (w : Harness.write) -> Printf.printf "write %02x@%04x at sample %d\n" w.data w.addr w.at)
-    r.writes;
-  match r.trapped with
-  | Some (n, cause) ->
-      Printf.printf "trap at sample %d, cause %s\n" n
-        (if cause = Core.cause_input then "HOLD or INT requested" else "unknown");
-      exit 1
-  | None -> ()
+    r.writes
+
+let in_default_arg =
+  Arg.(
+    value & opt int 0xff
+    & info [ "in-default" ] ~docv:"BYTE"
+        ~doc:"What an IN reads from a port with no bytes left, and an INTA cycle with none.")
+
+let io_out_arg =
+  Arg.(
+    value
+    & opt (some string) None
+    & info [ "io-out" ] ~docv:"FILE" ~doc:{|One "port value" hex line per OUT.|})
 
 let run_cmd =
   Cmd.v
@@ -85,7 +108,18 @@ let run_cmd =
       $ Arg.(
           value & opt (some string) None & info [ "pin-trace" ] ~docv:"FILE" ~doc:"K4 pin trace.")
       $ Arg.(value & opt int 100_000 & info [ "max-tstates" ] ~docv:"N")
-      $ vectors_arg)
+      $ vectors_arg
+      $ Arg.(
+          value
+          & opt (some file) None
+          & info [ "boot" ] ~docv:"FILE"
+              ~doc:"Hex preamble run from 0000 until the first fetch at --boot-pc.")
+      $ Arg.(value & opt int 0x100 & info [ "boot-pc" ] ~docv:"ADDR")
+      $ Arg.(
+          value & opt_all int []
+          & info [ "stop-port" ] ~docv:"PORT" ~doc:"Stop after an OUT to this port.")
+      $ Arg.(value & flag & info [ "no-halt-stop" ] ~doc:"Keep running in the halt cycle.")
+      $ in_default_arg $ io_out_arg)
 
 let default_stim = {|# i8080-stimulus v1
 reset 0 @4
@@ -113,23 +147,14 @@ let com file hex stim in_default tick_every vcd pin_trace max_tstates io_out vec
   Option.iter
     (fun f -> Out_channel.with_open_bin f (fun oc -> output_string oc (Harness.pin_trace r)))
     pin_trace;
-  Option.iter
-    (fun f ->
-      Out_channel.with_open_bin f (fun oc ->
-          List.iter (fun (p, b) -> Printf.fprintf oc "%02x %02x\n" p b) r.io_out))
-    io_out;
+  write_io_out io_out r;
   let console = Buffer.create 64 in
   List.iter (fun (p, b) -> if p = 1 then Buffer.add_char console (Char.chr b)) r.io_out;
   print_string (Buffer.contents console);
-  Printf.printf "stop %s, tstates %s, %d writes, %d OUTs\n"
-    (match r.stop with
-    | Harness.Halt -> "hlt"
-    | Port p -> Printf.sprintf "port %02x" p
-    | Trap -> "trap"
-    | Budget -> "budget")
+  Printf.printf "stop %s, tstates %s, %d writes, %d OUTs\n" (stop_name r.stop)
     (match r.counted with Some c -> string_of_int c | None -> "none")
     (List.length r.writes) (List.length r.io_out);
-  match r.stop with Budget | Trap -> exit 1 | _ -> ()
+  match r.stop with Budget -> exit 1 | _ -> ()
 
 let com_cmd =
   Cmd.v
@@ -140,10 +165,7 @@ let com_cmd =
       $ Arg.(value & flag & info [ "hex" ] ~doc:"The file is hex text, one byte per token.")
       $ Arg.(
           value & opt (some file) None & info [ "stim" ] ~docv:"FILE" ~doc:"K4 stimulus schedule.")
-      $ Arg.(
-          value & opt int 0xff
-          & info [ "in-default" ] ~docv:"BYTE"
-              ~doc:"What an IN reads from a port with no bytes left.")
+      $ in_default_arg
       $ Arg.(
           value & opt int 1
           & info [ "tick-every" ] ~docv:"N" ~doc:"Implementation clock cycles per T-state.")
@@ -151,11 +173,7 @@ let com_cmd =
       $ Arg.(
           value & opt (some string) None & info [ "pin-trace" ] ~docv:"FILE" ~doc:"K4 pin trace.")
       $ Arg.(value & opt int 10_000_000 & info [ "max-tstates" ] ~docv:"N")
-      $ Arg.(
-          value
-          & opt (some string) None
-          & info [ "io-out" ] ~docv:"FILE" ~doc:{|One "port value" hex line per OUT.|})
-      $ vectors_arg)
+      $ io_out_arg $ vectors_arg)
 
 let verilog output testbench =
   let module Circ = Hardcaml.Circuit.With_interface (Core.I) (Core.O) in

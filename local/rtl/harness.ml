@@ -1,7 +1,8 @@
 (* Cyclesim harness around [Core]: 64 KiB RAM, I/O ports, a K4 stimulus, the K4 pin trace and,
    optionally, the waveform written by Vcd.wrap for hwfrp. It does what the vm80a harness does: a cycle
-   whose status word at SYNC is IN or OUT never touches memory, a boot preamble may run from 0 until the
-   first fetch at its end address, and a run stops at the halt cycle or after an OUT to a stop port.
+   whose status word at SYNC is IN, OUT or an interrupt acknowledge never touches memory (the stimulus
+   supplies the bytes of INTA cycles), a boot preamble may run from 0 until the first fetch at its end
+   address, and a run stops at the halt cycle or after an OUT to a stop port.
 
    The inputs of T-state k are chosen from the pins of T-state k, which are the outputs after the
    previous clock edge (the core is Moore, so they do not depend on the inputs): the memory answers
@@ -29,12 +30,10 @@ type sample = {
   accept : bool;
   acc : int;
   pc : int;
-  trap : bool;
-  trap_cause : int;
 }
 
 type write = { at : int; addr : int; data : int }
-type stop = Halt | Port of int | Trap | Budget
+type stop = Halt | Port of int | Budget
 
 type boot = {
   code : string;  (** loaded at 0 over the memory, which is restored when the run reaches [pc] *)
@@ -48,7 +47,6 @@ type result = {
   writes : write list;  (** one entry per WR pulse *)
   counted : int option;  (** K2: first SYNC through the first TWH, [None] if the run never halted *)
   pre_sync : int;  (** samples before the first SYNC *)
-  trapped : (int * int) option;  (** sample and cause of the first trap *)
   memory : Bytes.t;
 }
 
@@ -86,10 +84,11 @@ let com_boot =
 
 (* [tick_every] > 1 runs the implementation clock faster than the T-state: the CPU advances only in the
    cycle where [tick] is high, the inputs are held in the others. [halt_samples] is how many halted (or
-   trapped, or stopped) samples to record after the first. [probe] sees every clock cycle: the inputs
+   stopped) samples to record after the first; with [halt_stop] false the halt cycle does not end the
+   run (an interrupt may). [probe] sees every clock cycle: the inputs
    applied and the outputs before the edge. *)
-let run ?(tick_every = 1) ?(halt_samples = 2) ?(max_tstates = 100_000) ?vcd ?probe
-    ?(stim = Stimulus.empty) ?(in_default = 0xff) ?(stop_ports = []) ?boot ~memory () =
+let run ?(tick_every = 1) ?(halt_samples = 2) ?(halt_stop = true) ?(max_tstates = 100_000) ?vcd
+    ?probe ?(stim = Stimulus.empty) ?(in_default = 0xff) ?(stop_ports = []) ?boot ~memory () =
   if tick_every < 1 then invalid_arg "Harness.run: tick_every";
   let sim = Sim.create Core.create in
   let sim = match vcd with Some oc -> Vcd.wrap oc sim | None -> sim in
@@ -110,13 +109,13 @@ let run ?(tick_every = 1) ?(halt_samples = 2) ?(max_tstates = 100_000) ?vcd ?pro
   let pending = ref None in
   let t1s = Hashtbl.create 16 in
   let cycles = ref (-1) in
-  let first_sync = ref None and halted_at = ref None and trapped = ref None in
+  let first_sync = ref None and halted_at = ref None in
   let stop_at = ref None and stopped = ref None in
   let stop = ref None in
   let pins = ref idle_pins in
   let din = ref 0 and prev_dbin = ref false in
   let kind = ref `Mem_read in
-  let in_used = Hashtbl.create 4 in
+  let in_used = Hashtbl.create 4 and inta_used = ref 0 in
   let n = ref 0 in
   let commit_write () =
     match !pending with
@@ -141,6 +140,7 @@ let run ?(tick_every = 1) ?(halt_samples = 2) ?(max_tstates = 100_000) ?vcd ?pro
          match dout with
          | 0x42 -> `In
          | 0x10 -> `Out
+         | s when s land 1 = 1 -> `Inta
          | s -> if s land 2 = 0 then `Mem_write else `Mem_read);
       (match !booting with
       | true when dout = 0xa2 && match saved_boot with Some (b, _) -> a = b.pc | None -> false ->
@@ -171,6 +171,11 @@ let run ?(tick_every = 1) ?(halt_samples = 2) ?(max_tstates = 100_000) ?vcd ?pro
             let used = Option.value (Hashtbl.find_opt in_used port) ~default:0 in
             Hashtbl.replace in_used port (used + 1);
             din := Option.value (Stimulus.io_byte stim ~port ~n:used) ~default:in_default
+          end
+      | `Inta ->
+          if not !prev_dbin then begin
+            din := Option.value (List.nth_opt stim.inta !inta_used) ~default:in_default;
+            incr inta_used
           end
       | _ -> din := Char.code (Bytes.get memory a)
       end;
@@ -216,15 +221,12 @@ let run ?(tick_every = 1) ?(halt_samples = 2) ?(max_tstates = 100_000) ?vcd ?pro
               accept = bit o.accept;
               acc = int o.acc;
               pc = int o.pc;
-              trap = bit o.trap;
-              trap_cause = int o.trap_cause;
             }
       end
     done;
     let s = Option.get !first in
     samples := s :: !samples;
-    if s.tstate = Core.twh && !halted_at = None then halted_at := Some k;
-    if s.trap && !trapped = None then trapped := Some (k, s.trap_cause);
+    if halt_stop && s.tstate = Core.twh && !halted_at = None then halted_at := Some k;
     (* an OUT to a stop port ends the run at the first sample after its WR pulse *)
     (match !stop_at with
     | Some -1 when wr_n -> stop_at := Some k
@@ -234,10 +236,9 @@ let run ?(tick_every = 1) ?(halt_samples = 2) ?(max_tstates = 100_000) ?vcd ?pro
     incr n;
     (* like the vm80a harness: two samples after the halt cycle's first, one after the stop sample *)
     let ends =
-      match (!halted_at, !trapped, !stop_at) with
-      | Some h, _, _ -> Some (h + halt_samples)
-      | _, Some (t, _), _ -> Some (t + halt_samples)
-      | _, _, Some k' when k' >= 0 -> Some (k' + halt_samples - 1)
+      match (!halted_at, !stop_at) with
+      | Some h, _ -> Some (h + halt_samples)
+      | _, Some k' when k' >= 0 -> Some (k' + halt_samples - 1)
       | _ -> None
     in
     match ends with Some e when k >= e -> stop := Some () | _ -> ()
@@ -247,10 +248,9 @@ let run ?(tick_every = 1) ?(halt_samples = 2) ?(max_tstates = 100_000) ?vcd ?pro
   let samples = List.rev !samples in
   let pre_sync = Option.value !first_sync ~default:(List.length samples) in
   let stop_reason =
-    match (!halted_at, !trapped, !stop_at) with
-    | Some _, _, _ -> Halt
-    | _, Some _, _ -> Trap
-    | _, _, Some _ -> ( match !io_out with (p, _) :: _ -> Port p | [] -> Budget)
+    match (!halted_at, !stop_at) with
+    | Some _, _ -> Halt
+    | _, Some _ -> ( match !io_out with (p, _) :: _ -> Port p | [] -> Budget)
     | _ -> Budget
   in
   let counted =
@@ -266,7 +266,6 @@ let run ?(tick_every = 1) ?(halt_samples = 2) ?(max_tstates = 100_000) ?vcd ?pro
     writes = List.rev !writes;
     counted;
     pre_sync;
-    trapped = !trapped;
     memory;
   }
 

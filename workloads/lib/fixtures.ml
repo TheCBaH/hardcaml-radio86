@@ -12,7 +12,7 @@ let bytes_of_string s = List.init (String.length s) (fun i -> Char.code s.[i])
 
 (* The data image: guard, inputs, results, scratch variables (with initial values), guard. *)
 let data_image ~table ~results_len ~vars =
-  let open I8080_asm in
+  let open I8080_asm.Items in
   let items =
     [
       db (bytes_of_string guard);
@@ -25,7 +25,7 @@ let data_image ~table ~results_len ~vars =
     @ List.concat_map (fun (name, init) -> [ label name; db (bytes_of_string init) ]) vars
     @ [ label "vars_end"; db (bytes_of_string guard) ]
   in
-  match Program.assemble ~origin:data_origin items with
+  match I8080_asm.Program.assemble ~origin:data_origin items with
   | Ok img -> img
   | Error e -> failwith (Foundation.Diagnostic.render_all (Foundation.Diag.diagnostics e))
 
@@ -59,8 +59,8 @@ let build ~name ~sources ~driver ~routines ~table ~results ~vars ~budget =
   }
 
 let finish at =
-  let open I8080_asm in
-  [ insn (lxi hl 0); insn (dad sp); insn (shld (at "sp_save")); insn (hlt ()) ]
+  let open I8080_asm.Items in
+  [ lxi hl 0; dad sp; shld (at "sp_save"); hlt () ]
 
 (* {1 Ackermann}
 
@@ -68,39 +68,39 @@ let finish at =
    HL = N, calls ack and stores HL. BC walks the table, which ack leaves alone. *)
 
 let ack_driver at =
-  let open I8080_asm in
+  let open I8080_asm.Items in
   [
-    insn (lxi sp stack_top);
-    insn (lxi hl (at "results"));
-    insn (shld (at "rptr"));
-    insn (lxi bc (at "table"));
+    lxi sp stack_top;
+    lxi hl (at "results");
+    shld (at "rptr");
+    lxi bc (at "table");
     label "next";
-    insn (inx bc);
-    insn (ldax bc);
-    insn (dcx bc);
-    insn (cpi 0xff);
-    insn (jz_e (symbol "done"));
-    insn (ldax bc);
-    insn (mov e a);
-    insn (inx bc);
-    insn (ldax bc);
-    insn (mov d a);
-    insn (inx bc);
-    insn (ldax bc);
-    insn (mov l a);
-    insn (inx bc);
-    insn (ldax bc);
-    insn (mov h a);
-    insn (inx bc);
-    insn (call_e (symbol "ack"));
-    insn (xchg ());
-    insn (lhld (at "rptr"));
-    insn (mov m e);
-    insn (inx hl);
-    insn (mov m d);
-    insn (inx hl);
-    insn (shld (at "rptr"));
-    insn (jmp_e (symbol "next"));
+    inx bc;
+    ldax bc;
+    dcx bc;
+    cpi 0xff;
+    jz_e (symbol "done");
+    ldax bc;
+    mov e a;
+    inx bc;
+    ldax bc;
+    mov d a;
+    inx bc;
+    ldax bc;
+    mov l a;
+    inx bc;
+    ldax bc;
+    mov h a;
+    inx bc;
+    call_e (symbol "ack");
+    xchg ();
+    lhld (at "rptr");
+    mov m e;
+    inx hl;
+    mov m d;
+    inx hl;
+    shld (at "rptr");
+    jmp_e (symbol "next");
     label "done";
   ]
   @ finish at
@@ -120,38 +120,38 @@ let ackermann_cases = [ (0, 0); (0, 7); (1, 0); (1, 4); (2, 0); (2, 4); (3, 2) ]
 (* {1 Multiply and divide} *)
 
 let mul_driver at =
-  let open I8080_asm in
+  let open I8080_asm.Items in
   [
-    insn (lxi sp stack_top);
-    insn (lxi hl (at "table"));
-    insn (shld (at "iptr"));
-    insn (lxi hl (at "results"));
-    insn (shld (at "rptr"));
+    lxi sp stack_top;
+    lxi hl (at "table");
+    shld (at "iptr");
+    lxi hl (at "results");
+    shld (at "rptr");
     label "loop";
-    insn (lda (at "cnt"));
-    insn (ora a);
-    insn (jz_e (symbol "done"));
-    insn (dcr a);
-    insn (sta (at "cnt"));
-    insn (lhld (at "iptr"));
-    insn (mov e m);
-    insn (inx hl);
-    insn (mov d m);
-    insn (inx hl);
-    insn (mov c m);
-    insn (inx hl);
-    insn (mov b m);
-    insn (inx hl);
-    insn (shld (at "iptr"));
-    insn (xchg ());
-    insn (call_e (symbol "mul16"));
-    insn (lhld (at "rptr"));
-    insn (mov m e);
-    insn (inx hl);
-    insn (mov m d);
-    insn (inx hl);
-    insn (shld (at "rptr"));
-    insn (jmp_e (symbol "loop"));
+    lda (at "cnt");
+    ora a;
+    jz_e (symbol "done");
+    dcr a;
+    sta (at "cnt");
+    lhld (at "iptr");
+    mov e m;
+    inx hl;
+    mov d m;
+    inx hl;
+    mov c m;
+    inx hl;
+    mov b m;
+    inx hl;
+    shld (at "iptr");
+    xchg ();
+    call_e (symbol "mul16");
+    lhld (at "rptr");
+    mov m e;
+    inx hl;
+    mov m d;
+    inx hl;
+    shld (at "rptr");
+    jmp_e (symbol "loop");
     label "done";
   ]
   @ finish at
@@ -190,57 +190,57 @@ let multiply_cases =
 
 (* A case is (hi, lo, divisor) with hi < divisor; the table order of a case is divisor, lo, hi. *)
 let div_driver at =
-  let open I8080_asm in
+  let open I8080_asm.Items in
   [
-    insn (lxi sp stack_top);
-    insn (lxi hl (at "table"));
-    insn (shld (at "iptr"));
-    insn (lxi hl (at "results"));
-    insn (shld (at "rptr"));
+    lxi sp stack_top;
+    lxi hl (at "table");
+    shld (at "iptr");
+    lxi hl (at "results");
+    shld (at "rptr");
     label "loop";
-    insn (lda (at "cnt"));
-    insn (ora a);
-    insn (jz_e (symbol "done"));
-    insn (dcr a);
-    insn (sta (at "cnt"));
-    insn (lhld (at "iptr"));
-    insn (lxi de 6);
-    insn (push hl);
-    insn (dad de);
-    insn (shld (at "iptr"));
-    insn (pop hl);
-    insn (xchg ());
-    insn (ldax de);
-    insn (mov c a);
-    insn (inx de);
-    insn (ldax de);
-    insn (mov b a);
-    insn (inx de);
-    insn (ldax de);
-    insn (mov l a);
-    insn (inx de);
-    insn (ldax de);
-    insn (mov h a);
-    insn (inx de);
-    insn (xchg ());
-    insn (mov a m);
-    insn (inx hl);
-    insn (mov h m);
-    insn (mov l a);
-    insn (call_e (symbol "div32x16r"));
-    insn (push hl);
-    insn (lhld (at "rptr"));
-    insn (mov m e);
-    insn (inx hl);
-    insn (mov m d);
-    insn (inx hl);
-    insn (pop de);
-    insn (mov m e);
-    insn (inx hl);
-    insn (mov m d);
-    insn (inx hl);
-    insn (shld (at "rptr"));
-    insn (jmp_e (symbol "loop"));
+    lda (at "cnt");
+    ora a;
+    jz_e (symbol "done");
+    dcr a;
+    sta (at "cnt");
+    lhld (at "iptr");
+    lxi de 6;
+    push hl;
+    dad de;
+    shld (at "iptr");
+    pop hl;
+    xchg ();
+    ldax de;
+    mov c a;
+    inx de;
+    ldax de;
+    mov b a;
+    inx de;
+    ldax de;
+    mov l a;
+    inx de;
+    ldax de;
+    mov h a;
+    inx de;
+    xchg ();
+    mov a m;
+    inx hl;
+    mov h m;
+    mov l a;
+    call_e (symbol "div32x16r");
+    push hl;
+    lhld (at "rptr");
+    mov m e;
+    inx hl;
+    mov m d;
+    inx hl;
+    pop de;
+    mov m e;
+    inx hl;
+    mov m d;
+    inx hl;
+    shld (at "rptr");
+    jmp_e (symbol "loop");
     label "done";
   ]
   @ finish at
@@ -284,4 +284,94 @@ let divide_cases =
     (0x1234, 0x5678, 0x9abc);
   ]
 
-let all () = [ ackermann ackermann_cases; multiply multiply_cases; divide divide_cases ]
+(* {1 Pi spigot}
+
+   The ported spigot is entered at pi_start with HL = the number of digits and writes its characters
+   through putc, which this driver defines (a store through [bufptr]); it ends at showtimer, which
+   stores SP and halts. The program is laid out as the source's: the three pages of m10000 on a page
+   boundary and the array r (label ra) right after them. The routine patches its own operands, so
+   the words it patches (svde, m1, svhl, mz1 .. mz3) and its variables cv and kv are writable code. *)
+
+let fresh_gen () =
+  let n = ref 0 in
+  fun base ->
+    incr n;
+    Printf.sprintf "%s_%d" base !n
+
+let spigot ?(digits = 32) ?(budget = 1_000_000) () =
+  if digits < 4 || digits mod 4 <> 0 then
+    invalid_arg "Fixtures.spigot: digits must be a multiple of 4";
+  let n = 7 * digits / 2 in
+  let text = Oracle.pi_digits digits in
+  let data =
+    data_image ~table:(words [ digits ]) ~results_len:digits
+      ~vars:[ ("bufptr", words [ 0 ]); ("sp_save", words [ 0 ]) ]
+  in
+  let at = symbol_exn data in
+  let driver =
+    let open I8080_asm.Items in
+    [
+      lxi sp stack_top;
+      lxi hl (at "results");
+      shld (at "bufptr");
+      lhld (at "table");
+      jmp_e (symbol "pi_start");
+      label "showtimer";
+      lxi hl 0;
+      dad sp;
+      shld (at "sp_save");
+      hlt ();
+      label "putc";
+      lhld (at "bufptr");
+      mov m e;
+      inx hl;
+      shld (at "bufptr");
+      ret ();
+    ]
+  in
+  let code pad =
+    assemble_code
+      (driver
+      @ Pi_spigot.routine ~fresh:(fresh_gen ())
+      @ Div32x16r.routine
+      @ [ I8080_asm.space pad ]
+      @ Pi_mul10000.routine
+      @ [ I8080_asm.label "ra"; I8080_asm.space ((2 * n) + 2) ])
+  in
+  let pad = (256 - (symbol_exn (code 0) "m10000" mod 256)) mod 256 in
+  let code = code pad in
+  let cs = symbol_exn code in
+  let region name lo len = { name; lo; len } in
+  {
+    name = Printf.sprintf "spigot%d" digits;
+    sources = [ "litwr2-pi-spigot: pi_spigot.ml pi_div.ml pi_div8.ml pi_mul10000.ml div32x16r.ml" ];
+    code;
+    data;
+    extra = [ stack_guard ];
+    writable =
+      [
+        region "results" (at "results") digits;
+        region "scratch" (at "vars") (at "vars_end" - at "vars");
+        stack_region;
+        region "r" (cs "ra" + 2) (2 * n);
+        region "cv" (cs "cv") 2;
+        region "kv" (cs "kv") 2;
+        region "svhl" (cs "svhl") 2;
+        region "svde operand" (cs "svde" + 1) 2;
+        region "m1 operand" (cs "m1" + 1) 2;
+        region "mz1 operand" (cs "mz1" + 1) 1;
+        region "mz2 operand" (cs "mz2" + 1) 2;
+        region "mz3 operand" (cs "mz3" + 1) 1;
+      ];
+    expect = [ (at "results", text); (at "sp_save", words [ stack_top ]) ];
+    final_sp = stack_top;
+    budget;
+  }
+
+let all () =
+  [
+    ackermann ackermann_cases;
+    multiply multiply_cases;
+    divide divide_cases;
+    spigot ~budget:900_000 ();
+  ]

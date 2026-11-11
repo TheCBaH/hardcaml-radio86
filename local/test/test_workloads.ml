@@ -48,6 +48,7 @@ let%expect_test "the workloads halt on the core with the expected RAM, and equal
     ackermann: core 41782 T-states, model 41782, memory equal, writes equal ok
     multiply: core 12919 T-states, model 12919, memory equal, writes equal ok
     divide: core 34356 T-states, model 34356, memory equal, writes equal ok
+    spigot32: core 751829 T-states, model 751829, memory equal, writes equal ok
     |}]
 
 let%expect_test "the workloads in lockstep with Rivet's model" =
@@ -77,7 +78,9 @@ let%expect_test "the workloads in lockstep with Rivet's model" =
         | None -> "no divergence"
         | Some d -> Format.asprintf "%a" Lockstep.pp_divergence d);
       ignore r)
-    (Fixtures.all ());
+    (List.filter
+       (fun (t : Fixture.t) -> not (String.starts_with ~prefix:"spigot" t.name))
+       (Fixtures.all ()));
   [%expect
     {|
     ackermann: 5501 instructions compared, halted=true, no divergence

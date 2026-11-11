@@ -21,26 +21,26 @@
    pending non-tail call. *)
 
 let routine =
-  let open I8080_asm in
+  let open I8080_asm.Items in
   [
     label "ack";
-    insn (mov a d);
-    insn (ora e);
-    insn (jnz_e (symbol "ackm"));
-    insn (inx hl);
-    insn (ret ());
+    mov a d;
+    ora e;
+    jnz_e (symbol "ackm");
+    inx hl;
+    ret ();
     label "ackm";
-    insn (mov a h);
-    insn (ora l);
-    insn (jnz_e (symbol "ackmn"));
-    insn (lxi hl 1);
-    insn (dcx de);
-    insn (jmp_e (symbol "ack"));
+    mov a h;
+    ora l;
+    jnz_e (symbol "ackmn");
+    lxi hl 1;
+    dcx de;
+    jmp_e (symbol "ack");
     label "ackmn";
-    insn (push de);
-    insn (dcx hl);
-    insn (call_e (symbol "ack"));
-    insn (pop de);
-    insn (dcx de);
-    insn (jmp_e (symbol "ack"));
+    push de;
+    dcx hl;
+    call_e (symbol "ack");
+    pop de;
+    dcx de;
+    jmp_e (symbol "ack");
   ]

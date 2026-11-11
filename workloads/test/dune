@@ -1,6 +1,8 @@
 (library
  (name workloads_test)
- (inline_tests)
+ (inline_tests
+  (deps
+   (glob_files ../upstream/litwr2-pi-spigot/*)))
  (preprocess
   (pps ppx_expect))
  (libraries i8080_workloads rivet.i8080_asm qcheck-core))

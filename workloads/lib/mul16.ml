@@ -18,30 +18,30 @@
    multiplier: the high half of the product is lost. *)
 
 let routine =
-  let open I8080_asm in
+  let open I8080_asm.Items in
   [
     label "mul16";
-    insn (xra a);
-    insn (mov d a);
-    insn (mov e a);
+    xra a;
+    mov d a;
+    mov e a;
     label "mul16_ll3";
-    insn (mov a b);
-    insn (rar ());
-    insn (mov b a);
-    insn (mov a c);
-    insn (rar ());
-    insn (mov c a);
-    insn (jnc_e (symbol "mul16_ll4"));
-    insn (xchg ());
-    insn (dad de);
-    insn (xchg ());
+    mov a b;
+    rar ();
+    mov b a;
+    mov a c;
+    rar ();
+    mov c a;
+    jnc_e (symbol "mul16_ll4");
+    xchg ();
+    dad de;
+    xchg ();
     label "mul16_ll4";
-    insn (dad hl);
-    insn (mov a h);
-    insn (ora l);
-    insn (rz ());
-    insn (mov a b);
-    insn (ora c);
-    insn (jnz_e (symbol "mul16_ll3"));
-    insn (ret ());
+    dad hl;
+    mov a h;
+    ora l;
+    rz ();
+    mov a b;
+    ora c;
+    jnz_e (symbol "mul16_ll3");
+    ret ();
   ]

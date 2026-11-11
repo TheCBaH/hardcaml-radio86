@@ -8,7 +8,7 @@ Rivet's behavioural model, the Hardcaml core and the released `vm80a_sim`.
 | Path | What it is | Licence |
 | --- | --- | --- |
 | `upstream/` | Verbatim third-party 8080 sources the ports come from, each with its licence, revision and SHA-256 (`PROVENANCE.md`). Reference only; nothing builds them. | each upstream's own |
-| `lib/ackermann.ml`, `mul16.ml`, `div32x16r.ml` | One port per routine, one file each. The header names the origin, author, licence, the label mapping and every change. | GFDL 1.2, GPL-2.0, GPL-2.0 |
+| `lib/ackermann.ml`, `mul16.ml`, `div32x16r.ml`, `pi_spigot.ml`, `pi_div.ml`, `pi_div8.ml`, `pi_mul10000.ml` | One port per upstream file or routine, one file each. The header names the origin, author, licence, the label mapping and every change. | GFDL 1.2 (Ackermann), GPL-2.0 (the rest) |
 | `lib/oracle.ml` | Reference answers in plain OCaml: Ackermann (by definition and in closed form), 16-bit product and 32/16 division in `Int64`, digits of pi by Machin's formula. | MIT |
 | `lib/fixture.ml`, `fixtures.ml`, `model_run.ml` | A workload as data (code image, RAM image, writable regions, expected RAM, budget), our own drivers that read cases from RAM and write answers to RAM, and the runner in Rivet's model. | MIT |
 | `bin/workload_files.ml` | Writes the fixtures as files for an external CPU. | MIT |
@@ -40,4 +40,14 @@ the stack; every driver ends with `SP` stored in `sp_save`, then `HLT`.
 | `multiply` | litwr2 `mul16`, low 16 bits of HL * BC | 15: zero, one, alternating bits, around `0x8000`, `0xffff` | 90 B | 113 B | 12919 | 2 B |
 | `divide` | litwr2 `div32x16r`, HLDE / BC with HL < BC | 16: zero dividend, divisor one, exact, inexact, high-bit divisors, quotient `0xffff` | 135 B | 183 B | 34356 | 12 B |
 
-Budgets are the measured T-states plus about 20 %: 50 000, 16 000 and 42 000.
+| `spigot32` | litwr2 pi spigot, 32 digits | `31415926535897932384626433832795` as 32 ASCII digits, against Machin's formula | 3298 B, of which 768 B table and 226 B array | 54 B | 751829 | 12 B |
+
+Budgets are the measured T-states plus about 20 %: 50 000, 16 000, 42 000 and 900 000.
+
+`test/` also runs the spigot at 4, 8, 36 and 100 digits on the model: above 36 digits the divisor `2i - 1`
+passes 255 and the long-division paths of the ported macro run, which 32 digits never reach (100 digits take
+6.6 million T-states). The Hardcaml core runs the 32-digit fixture in about ten seconds and matches the model's
+final RAM, writes and T-state count; its waveform is not replayed (three quarters of a million T-states).
+
+The spigot patches its own operands (`svde`, `m1`, `svhl`, `mz1` .. `mz3`), as the original does; those words and
+its variables `cv` and `kv` are in the fixture's allowed-write map, together with the array `r`.

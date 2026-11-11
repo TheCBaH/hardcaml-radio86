@@ -19,46 +19,46 @@
    are the loop: they run the shift-and-subtract step sixteen times and need ten bytes of stack. *)
 
 let routine =
-  let open I8080_asm in
+  let open I8080_asm.Items in
   [
     label "div32x16r";
-    insn (call_e (symbol "div32x16r_t"));
-    insn (lxi bc 0);
-    insn (ret ());
+    call_e (symbol "div32x16r_t");
+    lxi bc 0;
+    ret ();
     label "div32x16r_t";
-    insn (dcx bc);
-    insn (mov a b);
-    insn (cma ());
-    insn (mov b a);
-    insn (mov a c);
-    insn (cma ());
-    insn (mov c a);
-    insn (call_e (symbol "div32x16r_t0"));
+    dcx bc;
+    mov a b;
+    cma ();
+    mov b a;
+    mov a c;
+    cma ();
+    mov c a;
+    call_e (symbol "div32x16r_t0");
     label "div32x16r_t0";
-    insn (call_e (symbol "div32x16r_t1"));
+    call_e (symbol "div32x16r_t1");
     label "div32x16r_t1";
-    insn (call_e (symbol "div32x16r_t2"));
+    call_e (symbol "div32x16r_t2");
     label "div32x16r_t2";
-    insn (call_e (symbol "div32x16r_t3"));
+    call_e (symbol "div32x16r_t3");
     label "div32x16r_t3";
-    insn (xchg ());
-    insn (dad hl);
-    insn (xchg ());
-    insn (jc_e (symbol "div32x16r_l1"));
-    insn (dad hl);
+    xchg ();
+    dad hl;
+    xchg ();
+    jc_e (symbol "div32x16r_l1");
+    dad hl;
     label "div32x16r_l2";
-    insn (jc_e (symbol "div32x16r_t4"));
-    insn (mov a l);
-    insn (add c);
-    insn (mov a h);
-    insn (adc b);
-    insn (rnc ());
+    jc_e (symbol "div32x16r_t4");
+    mov a l;
+    add c;
+    mov a h;
+    adc b;
+    rnc ();
     label "div32x16r_t4";
-    insn (dad bc);
-    insn (inr e);
-    insn (ret ());
+    dad bc;
+    inr e;
+    ret ();
     label "div32x16r_l1";
-    insn (dad hl);
-    insn (inr l);
-    insn (jmp_e (symbol "div32x16r_l2"));
+    dad hl;
+    inr l;
+    jmp_e (symbol "div32x16r_l2");
   ]

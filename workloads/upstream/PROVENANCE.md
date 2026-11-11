@@ -8,7 +8,7 @@ licence of the rest of this repository (MIT, `LICENSE.md`).
 | Directory | Upstream | Revision | Licence |
 | --- | --- | --- | --- |
 | `rosettacode-ackermann/` | [Rosetta Code, Ackermann function, 8080 Assembly](https://rosettacode.org/wiki/Ackermann_function#8080_Assembly), as preserved in [acmeism/RosettaCodeData](https://github.com/acmeism/RosettaCodeData/blob/1d475861d7141ef2fafff293d9339f56e4b0f5db/Task/Ackermann-function/8080-Assembly/ackermann-function.8080) | RosettaCodeData `1d475861d7141ef2fafff293d9339f56e4b0f5db` (file last changed in `f23f22d71c285985898c796573a9c514cc8ea505`, 2023-07-01) | GNU Free Documentation License 1.2 (`LICENSE-GFDL-1.2.txt`; the terms of [Rosetta Code:Copyrights](https://rosettacode.org/wiki/Rosetta_Code:Copyrights)). The author is the contributor of the 8080 section of the task page, see its history; RosettaCodeData carries no per-file author or licence record. |
-| `litwr2-pi-spigot/` | [litwr2/rosetta-pi-spigot](https://github.com/litwr2/rosetta-pi-spigot), directory `8080` | `5ec0f5369fd8c5439d76eb5acdd28386ca1ac246` | GNU General Public License 2.0 (`LICENSE`). The author is litwr2; the source credits ivagor, blackmirror, tricky and BigEd for the division idea and help. |
+| `litwr2-pi-spigot/` | [litwr2/rosetta-pi-spigot](https://github.com/litwr2/rosetta-pi-spigot), directory `8080`; `mul10000.s` is `amstrad/cpc6128/mul10000.s` (the 8080 source includes a file of that name that the 8080 directory does not hold) | `5ec0f5369fd8c5439d76eb5acdd28386ca1ac246` | GNU General Public License 2.0 (`LICENSE`). The author is litwr2; the source credits ivagor, blackmirror, tricky and BigEd for the division idea and help. |
 
 SHA-256 of the copies:
 
@@ -19,13 +19,16 @@ f0c52d24c96de0e28bce0740007293968f62abe50648ae0a7c6f46c982fe0df8  rosettacode-ac
 e5b03341dd4141953de440056776d814dbed7489c0609d81a8cbe805984c686c  litwr2-pi-spigot/pi-8080.asm
 239a0d63a7e174b4a92522aa4759aff841ee0a82d6996210c0a432407777c55b  litwr2-pi-spigot/8080-div.s
 4ef24c61dc3c6ea80cd134f72b7ca5fc147b1f3bbb71ce72b1179f2d14782ac4  litwr2-pi-spigot/8080-div8.s
+1949f2e710899dcd963f48df5a113d6ab0468dbd8e72b23042b4c497c5238ae5  litwr2-pi-spigot/mul10000.s
 8177f97513213526df2cf6184d8ff986c675afb514d4e68a404010521b880643  litwr2-pi-spigot/LICENSE
 ```
 
-`ackermann-function.8080` is not the demonstration's CP/M part used here: only the `ack`, `ackm` and `ackmn`
-routine is ported. `8080-mul16.s` and the `div32x16r` routine of `pi-8080.asm` are written in the Zilog
-mnemonics of the Pasmo assembler (`ld`, `jp`, `ex de,hl`) for the 8080; the ports spell the same instructions
-with the 8080's.
+Only the computation is ported, not the platform parts: from `ackermann-function.8080` the `ack`, `ackm` and
+`ackmn` routine (not the CP/M demonstration); from `pi-8080.asm` the digit count, the array fill, the main loop,
+the digit conversion and `div32x16r` (not the start-up, the questions, the timers or the exit). `8080-mul16.s`,
+`pi-8080.asm` and `8080-div*.s` are written in the Zilog mnemonics of the Pasmo assembler (`ld`, `jp`,
+`ex de,hl`) for the 8080 and use its macros; the ports spell the same instructions with the 8080's and the
+macros as OCaml functions.
 
 ## Ports
 
@@ -37,3 +40,7 @@ changes; the files authored here (oracles, fixtures, drivers, runners) say so an
 | `ackermann.ml` | `rosettacode-ackermann/ackermann-function.8080`, labels `ack` to `ackmn` | GFDL 1.2 |
 | `mul16.ml` | `litwr2-pi-spigot/8080-mul16.s` | GPL-2.0 |
 | `div32x16r.ml` | `litwr2-pi-spigot/pi-8080.asm`, routine `div32x16r` (lines 617-654) | GPL-2.0 |
+| `pi_spigot.ml` | `litwr2-pi-spigot/pi-8080.asm`, from the digit count to the end of the loop, `PR0000`, `PR0`, `PRD`, `cv`, `kv` | GPL-2.0 |
+| `pi_div.ml` | `litwr2-pi-spigot/8080-div.s`, macros `div1x` .. `div32x16`, expanded where the spigot uses `div32x16` | GPL-2.0 |
+| `pi_div8.ml` | `litwr2-pi-spigot/8080-div8.s` | GPL-2.0 |
+| `pi_mul10000.ml` | `litwr2-pi-spigot/mul10000.s` (the table, produced by its definition and compared with the file) | GPL-2.0 |

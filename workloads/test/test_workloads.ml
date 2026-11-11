@@ -71,7 +71,38 @@ let%expect_test "the three fixtures" =
     ackermann: code=86 data=66 tstates=41782 stack=110 budget=50000 ok
     multiply: code=90 data=113 tstates=12919 stack=2 budget=16000 ok
     divide: code=135 data=183 tstates=34356 stack=12 budget=42000 ok
+    spigot32: code=3298 data=54 tstates=751829 stack=12 budget=900000 ok
     |}]
+
+(* More digits: the divisor 2i - 1 passes 255 above 36 digits, which takes the long-division paths
+   of the ported macro that 32 digits never reach. *)
+let%expect_test "the pi spigot at other lengths" =
+  List.iter
+    (fun digits -> report (Fixtures.spigot ~digits ~budget:100_000_000 ()))
+    [ 4; 8; 36; 100 ];
+  [%expect
+    {|
+    spigot4: code=3102 data=26 tstates=23869 stack=12 budget=100000000 ok
+    spigot8: code=3130 data=30 tstates=66940 stack=12 budget=100000000 ok
+    spigot36: code=3326 data=58 tstates=942396 stack=12 budget=100000000 ok
+    spigot100: code=3774 data=122 tstates=6578291 stack=12 budget=100000000 ok
+    |}]
+
+let%expect_test "the multiplication table equals the upstream file" =
+  let ic = open_in "../upstream/litwr2-pi-spigot/mul10000.s" in
+  let bytes = ref [] in
+  (try
+     while true do
+       let line = String.trim (input_line ic) in
+       if String.length line > 3 && String.sub line 0 3 = "db " then
+         List.iter
+           (fun v -> bytes := int_of_string (String.trim v) :: !bytes)
+           (String.split_on_char ',' (String.sub line 3 (String.length line - 3)))
+     done
+   with End_of_file -> close_in ic);
+  let upstream = List.rev !bytes in
+  Printf.printf "%d bytes, equal: %b\n" (List.length upstream) (upstream = Pi_mul10000.bytes);
+  [%expect {| 768 bytes, equal: true |}]
 
 let%expect_test "the proposal's Ackermann table" =
   let t : Fixture.t = Fixtures.ackermann [ (0, 0); (0, 7); (1, 4); (2, 4); (3, 2) ] in

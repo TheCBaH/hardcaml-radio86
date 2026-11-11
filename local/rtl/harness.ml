@@ -86,9 +86,10 @@ let com_boot =
 
 (* [tick_every] > 1 runs the implementation clock faster than the T-state: the CPU advances only in the
    cycle where [tick] is high, the inputs are held in the others. [halt_samples] is how many halted (or
-   trapped, or stopped) samples to record after the first. *)
-let run ?(tick_every = 1) ?(halt_samples = 2) ?(max_tstates = 100_000) ?vcd ?(stim = Stimulus.empty)
-    ?(in_default = 0xff) ?(stop_ports = []) ?boot ~memory () =
+   trapped, or stopped) samples to record after the first. [probe] sees every clock cycle: the inputs
+   applied and the outputs before the edge. *)
+let run ?(tick_every = 1) ?(halt_samples = 2) ?(max_tstates = 100_000) ?vcd ?probe
+    ?(stim = Stimulus.empty) ?(in_default = 0xff) ?(stop_ports = []) ?boot ~memory () =
   if tick_every < 1 then invalid_arg "Harness.run: tick_every";
   let sim = Sim.create Core.create in
   let sim = match vcd with Some oc -> Vcd.wrap oc sim | None -> sim in
@@ -182,41 +183,45 @@ let run ?(tick_every = 1) ?(halt_samples = 2) ?(max_tstates = 100_000) ?vcd ?(st
     set i.int_req int_;
     set i.rst_in reset;
     i.di := Bits.of_int ~width:8 !din;
-    for _ = 2 to tick_every do
-      set i.tick false;
-      Cyclesim.cycle sim
+    (* the pins and the state of a T-state are read in its first clock cycle: RESET clears the registers
+       without waiting for [tick], so the later cycles of a slower T-state may already show the cleared
+       state. The pins must be the ones assumed above. *)
+    let first = ref None in
+    for j = 1 to tick_every do
+      set i.tick (j = tick_every);
+      Cyclesim.cycle sim;
+      Option.iter (fun f -> f i o) probe;
+      if j = 1 then begin
+        if pins_of o <> !pins && k > 0 then
+          failwith (Printf.sprintf "Harness: the pins of T-state %d depend on the inputs" k);
+        first :=
+          Some
+            {
+              n = k;
+              a;
+              dout = (if dout_en then Some dout else None);
+              din = (if drives then Some !din else None);
+              sync;
+              dbin;
+              wr_n;
+              wait;
+              hlda = bit o.hlda;
+              inte = bit o.inte;
+              ready;
+              hold;
+              int_;
+              reset;
+              tstate = int o.tstate;
+              cycle = int o.cycle;
+              accept = bit o.accept;
+              acc = int o.acc;
+              pc = int o.pc;
+              trap = bit o.trap;
+              trap_cause = int o.trap_cause;
+            }
+      end
     done;
-    set i.tick true;
-    Cyclesim.cycle sim;
-    (* the pins the sample sees are those of the cycle just run: they must be the ones assumed above *)
-    let seen = pins_of o in
-    if seen <> !pins && k > 0 then
-      failwith (Printf.sprintf "Harness: the pins of T-state %d depend on the inputs" k);
-    let s =
-      {
-        n = k;
-        a;
-        dout = (if dout_en then Some dout else None);
-        din = (if drives then Some !din else None);
-        sync;
-        dbin;
-        wr_n;
-        wait;
-        hlda = bit o.hlda;
-        inte = bit o.inte;
-        ready;
-        hold;
-        int_;
-        reset;
-        tstate = int o.tstate;
-        cycle = int o.cycle;
-        accept = bit o.accept;
-        acc = int o.acc;
-        pc = int o.pc;
-        trap = bit o.trap;
-        trap_cause = int o.trap_cause;
-      }
-    in
+    let s = Option.get !first in
     samples := s :: !samples;
     if s.tstate = Core.twh && !halted_at = None then halted_at := Some k;
     if s.trap && !trapped = None then trapped := Some (k, s.trap_cause);

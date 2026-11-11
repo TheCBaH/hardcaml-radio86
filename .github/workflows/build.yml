@@ -69,4 +69,6 @@ jobs:
             out/rtl/*.perfetto.json
             out/rtl/*.export
             out/rtl/i8080_core.v
+            out/verilog/*.v
+            out/verilog/*.tb.txt
           if-no-files-found: warn

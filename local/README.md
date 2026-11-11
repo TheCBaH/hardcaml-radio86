@@ -9,14 +9,18 @@ with the common observatory like any other core.
 | `trace/` | `i8080_rtl_trace`: the harness's samples as the observatory's frames (the pin trace of the run). |
 | `bin/` | `i8080_rtl_run`: `run` a program, `com` a CP/M `.COM` under the K5 shim, `verilog`; writes the `Vcd.wrap` waveform and the K4 pin trace. |
 | `manifest.json` | The observation manifest of the `Vcd.wrap` waveform (`hardcaml-vcd`). |
-| `scripts/` | `rtl-test.sh` (the release's fixtures, `io-console` and `8080PRE` on the core and on vm80a_sim) and `lockstep-programs.sh` (seeded programs against Rivet's model). |
+| `scripts/` | `rtl-test.sh` (the release's fixtures, `io-console` and `8080PRE` on the core and on vm80a_sim), `verilog-test.sh` (the emitted Verilog under Icarus Verilog, every clock cycle against Cyclesim) and `lockstep-programs.sh` (seeded programs against Rivet's model). |
 | `test/` | Unit tests: the cycle plan against Rivet's table, all 256 opcodes in lockstep with Rivet's model, the fixtures, the waveform and its observation. |
 
 ```sh
 make test-local   # the unit tests
 make rtl-test     # fixtures, 8080PRE and io-console against vm80a_sim, a faster clock, export and replay
+make verilog-test # the emitted Verilog replays Cyclesim's runs: same outputs in every clock cycle
 make rtl-lockstep-test
 ```
+
+RESET (`rst_in`) is the synchronous clear of every register and does not wait for `tick`; the emitted
+Verilog has no other initial state, which is why the testbench compares from the second cycle on.
 
 ## The manifest of the Hardcaml core (`local/manifest.json`)
 

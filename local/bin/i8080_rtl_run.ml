@@ -24,7 +24,21 @@ let hex_image text =
          | _ -> die "bad hex byte %S" t)
        toks)
 
-let run image hex origin stim tick_every vcd pin_trace max_tstates =
+(* [--vectors]: every clock cycle of the run as a line for the Verilog testbench *)
+let with_vectors file f =
+  match file with
+  | None -> f None
+  | Some file ->
+      Out_channel.with_open_bin file (fun oc ->
+          f (Some (fun i o -> output_string oc (Vectors.line i o ^ "\n"))))
+
+let vectors_arg =
+  Arg.(
+    value
+    & opt (some string) None
+    & info [ "vectors" ] ~docv:"FILE" ~doc:"Inputs and expected outputs of every clock cycle.")
+
+let run image hex origin stim tick_every vcd pin_trace max_tstates vectors =
   let memory = Harness.new_memory () in
   Harness.load_program memory ~origin (if hex then hex_image (read_file image) else read_file image);
   let stim =
@@ -33,7 +47,10 @@ let run image hex origin stim tick_every vcd pin_trace max_tstates =
     | Some f -> ( match Stimulus.parse (read_file f) with Ok s -> s | Error e -> die "%s: %s" f e)
   in
   let oc = Option.map open_out_bin vcd in
-  let r = Harness.run ~tick_every ~max_tstates ?vcd:oc ~stim ~memory () in
+  let r =
+    with_vectors vectors (fun probe ->
+        Harness.run ~tick_every ~max_tstates ?vcd:oc ?probe ~stim ~memory ())
+  in
   Option.iter close_out oc;
   Option.iter
     (fun f -> Out_channel.with_open_bin f (fun oc -> output_string oc (Harness.pin_trace r)))
@@ -67,7 +84,8 @@ let run_cmd =
       $ Arg.(value & opt (some string) None & info [ "vcd" ] ~docv:"FILE" ~doc:"Vcd.wrap waveform.")
       $ Arg.(
           value & opt (some string) None & info [ "pin-trace" ] ~docv:"FILE" ~doc:"K4 pin trace.")
-      $ Arg.(value & opt int 100_000 & info [ "max-tstates" ] ~docv:"N"))
+      $ Arg.(value & opt int 100_000 & info [ "max-tstates" ] ~docv:"N")
+      $ vectors_arg)
 
 let default_stim = {|# i8080-stimulus v1
 reset 0 @4
@@ -75,7 +93,7 @@ reset 0 @4
 
 (* A CP/M .COM file under the K5 shim: loaded at 0100 behind the release's boot preamble, run until
    OUT FF or HLT. The console is port 01. *)
-let com file hex stim in_default tick_every vcd pin_trace max_tstates io_out =
+let com file hex stim in_default tick_every vcd pin_trace max_tstates io_out vectors =
   let memory = Harness.new_memory () in
   Harness.load_shim memory;
   Harness.load_program memory ~origin:0x100
@@ -87,8 +105,9 @@ let com file hex stim in_default tick_every vcd pin_trace max_tstates io_out =
   in
   let oc = Option.map open_out_bin vcd in
   let r =
-    Harness.run ~tick_every ~max_tstates ?vcd:oc ~stim ~in_default ~stop_ports:[ 0xff ]
-      ~boot:Harness.com_boot ~memory ()
+    with_vectors vectors (fun probe ->
+        Harness.run ~tick_every ~max_tstates ?vcd:oc ?probe ~stim ~in_default ~stop_ports:[ 0xff ]
+          ~boot:Harness.com_boot ~memory ())
   in
   Option.iter close_out oc;
   Option.iter
@@ -135,21 +154,32 @@ let com_cmd =
       $ Arg.(
           value
           & opt (some string) None
-          & info [ "io-out" ] ~docv:"FILE" ~doc:{|One "port value" hex line per OUT.|}))
+          & info [ "io-out" ] ~docv:"FILE" ~doc:{|One "port value" hex line per OUT.|})
+      $ vectors_arg)
 
-let verilog output =
+let verilog output testbench =
   let module Circ = Hardcaml.Circuit.With_interface (Core.I) (Core.O) in
   let c = Circ.create_exn ~name:"i8080_core" Core.create in
-  match output with
+  (match output with
   | None -> Hardcaml.Rtl.print Verilog c
   | Some f ->
       let oc = open_out_bin f in
       Hardcaml.Rtl.output ~output_mode:(To_channel oc) Verilog c;
-      close_out oc
+      close_out oc);
+  Option.iter
+    (fun f -> Out_channel.with_open_bin f (fun oc -> output_string oc Vectors.testbench))
+    testbench
 
 let verilog_cmd =
   Cmd.v
     (Cmd.info "verilog" ~doc:"Write the core as Verilog.")
-    Term.(const verilog $ Arg.(value & opt (some string) None & info [ "output" ] ~docv:"FILE"))
+    Term.(
+      const verilog
+      $ Arg.(value & opt (some string) None & info [ "output" ] ~docv:"FILE")
+      $ Arg.(
+          value
+          & opt (some string) None
+          & info [ "testbench" ] ~docv:"FILE"
+              ~doc:"A testbench that replays the lines of --vectors into the core."))
 
 let () = exit (Cmd.eval (Cmd.group (Cmd.info "i8080_rtl_run") [ run_cmd; com_cmd; verilog_cmd ]))

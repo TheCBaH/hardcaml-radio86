@@ -79,11 +79,19 @@ let parity x = ~:(List.fold_left ( ^: ) gnd (bits_msb x))
 let is_zero x = x ==:. 0
 
 let create (i : _ I.t) =
-  let spec = Reg_spec.create ~clock:i.clock () in
-  let reg w = Always.Variable.reg ~enable:i.tick ~width:w spec in
+  (* RESET is the synchronous clear of every register: it does not wait for [tick] *)
+  let spec = Reg_spec.create ~clock:i.clock ~clear:i.rst_in () in
+  let reg ?clear_to w =
+    let spec =
+      match clear_to with
+      | None -> spec
+      | Some v -> Reg_spec.override spec ~clear_to:(of_int ~width:w v)
+    in
+    Always.Variable.reg ~enable:i.tick ~width:w spec
+  in
   let t = reg 3 and cyc = reg 3 and xc = reg 4 and addr = reg 16 in
   let pc = reg 16 and sp = reg 16 and wz = reg 16 in
-  let ir = reg 8 and dlat = reg 8 and tmp = reg 8 and flags = reg 8 in
+  let ir = reg 8 and dlat = reg 8 and tmp = reg 8 and flags = reg ~clear_to:reset_flags 8 in
   let ra = reg 8 and rb = reg 8 and rc = reg 8 and rd = reg 8 and re = reg 8 in
   let rh = reg 8 and rl = reg 8 in
   let inte = reg 1 and first_twh = reg 1 and cause = reg 2 in
@@ -328,53 +336,27 @@ let create (i : _ I.t) =
   Always.(
     compile
       [
-        if_ i.rst_in
+        if_
+          (i.hold |: i.int_req &: ~:(in_t fault))
+          [ t <--. fault; cause <--. cause_input ]
           [
-            t <--. idle;
-            cyc <--. 0;
-            xc <--. 0;
-            addr <--. 0;
-            pc <--. 0;
-            sp <--. 0;
-            wz <--. 0;
-            ir <--. 0;
-            dlat <--. 0;
-            tmp <--. 0;
-            ra <--. 0;
-            rb <--. 0;
-            rc <--. 0;
-            rd <--. 0;
-            re <--. 0;
-            rh <--. 0;
-            rl <--. 0;
-            first_twh <--. 0;
-            cause <--. 0;
-            inte <--. 0;
-            flags <--. reset_flags;
-          ]
-          [
-            if_
-              (i.hold |: i.int_req &: ~:(in_t fault))
-              [ t <--. fault; cause <--. cause_input ]
+            switch (v t)
               [
-                switch (v t)
+                (of_int ~width:3 idle, [ t <--. t1; cyc <--. 0 ]);
+                ( of_int ~width:3 t1,
                   [
-                    (of_int ~width:3 idle, [ t <--. t1; cyc <--. 0 ]);
-                    ( of_int ~width:3 t1,
-                      [
-                        t <--. t2;
-                        addr <-- a_now;
-                        when_ (rd_like &: (src_sel ==:. 0)) [ pc <-- v pc +:. 1 ];
-                      ] );
-                    (of_int ~width:3 t2, wait_state);
-                    (of_int ~width:3 tw, wait_state);
-                    (of_int ~width:3 t3, t3_state);
-                    (of_int ~width:3 t4, t4_state);
-                    (of_int ~width:3 twh, [ first_twh <--. 0 ]);
-                  ];
-                proc advance;
-                proc effects;
+                    t <--. t2;
+                    addr <-- a_now;
+                    when_ (rd_like &: (src_sel ==:. 0)) [ pc <-- v pc +:. 1 ];
+                  ] );
+                (of_int ~width:3 t2, wait_state);
+                (of_int ~width:3 tw, wait_state);
+                (of_int ~width:3 t3, t3_state);
+                (of_int ~width:3 t4, t4_state);
+                (of_int ~width:3 twh, [ first_twh <--. 0 ]);
               ];
+            proc advance;
+            proc effects;
           ];
       ]);
   let sync = in_t t1 in

@@ -6,6 +6,7 @@ RUN set -eux;\
   curl\
   gcc\
   git\
+  iverilog\
   libgmp-dev\
   make\
   patch\

@@ -28,4 +28,5 @@
   jsont
   bytesrw
   cmdliner
-  (ppx_expect :with-test)))
+  (ppx_expect :with-test)
+  (qcheck-core :with-test)))

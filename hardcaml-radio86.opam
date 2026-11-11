@@ -2,7 +2,7 @@
 opam-version: "2.0"
 synopsis: "Observation of an Intel 8080 from waveform traces"
 description:
-  "Reads Verilator or Cyclesim waveforms of an 8080 with hwfrp and decodes bus transfers, instructions and register state, checked in lockstep against Rivet's behavioural model."
+  "Hardcaml i8080 CPU and its harness; reads Verilator or Cyclesim waveforms of an 8080 with hwfrp and decodes bus transfers, instructions and register state, checked in lockstep against Rivet's behavioural model."
 maintainer: ["Vladimir Silyaev"]
 authors: ["Vladimir Silyaev"]
 license: "MIT"
@@ -12,11 +12,14 @@ depends: [
   "dune" {>= "3.21"}
   "ocaml" {>= "4.14"}
   "hwfrp"
+  "hardcaml"
+  "ppx_hardcaml"
   "rivet"
   "jsont"
   "bytesrw"
   "cmdliner"
   "ppx_expect" {with-test}
+  "qcheck-core" {with-test}
   "odoc" {with-doc}
 ]
 build: [
@@ -45,5 +48,5 @@ pin-depends: [
   ["ovcd.dev" "git+https://github.com/TheCBaH/ovcd.git#d24473baee9b6df8255b9a464cee60c643cb5bfd"]
   ["err_trace.0.1.0" "git+https://github.com/TheCBaH/err_trace.git#1c7a6ba94c81c70008c594c709e7d37feb38f435"]
   ["hwfrp.dev" "git+https://github.com/TheCBaH/coralview.git#5ff364d51952d98224a27ec233983f167aa350c8"]
-  ["rivet.dev" "git+https://github.com/TheCBaH/rivet.git#932dcbd88b2b35846f5959d9d6a9ac2fcf695d91"]
+  ["rivet.dev" "git+https://github.com/TheCBaH/rivet.git#ed835b23860931ebc714b3edc19468cdc796c169"]
 ]

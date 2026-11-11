@@ -88,7 +88,11 @@ let%expect_test "HOLD and INT are rejected, not ignored" =
     int: trap, cause 2 |}]
 
 let%expect_test "RESET during a run restarts at 0000" =
-  let r = run_program ~stim:"reset 0 @4\nreset 1 @14\nreset 0 @17\n" Fixture.program in
+  let stim = {|reset 0 @4
+reset 1 @14
+reset 0 @17
+|} in
+  let r = run_program ~stim Fixture.program in
   let fetches =
     List.filter_map
       (fun (s : Harness.sample) -> if s.sync && not s.reset then Some (s.n, s.a) else None)
@@ -115,7 +119,10 @@ let%expect_test "malformed stimulus statements are refused, io and inta are read
       match Stimulus.parse text with Ok _ -> print_endline "accepted" | Error e -> print_endline e)
     [
       "io 10 41 42\n";
-      "io 10 43\nio 20 1\ninta e7 cd\n";
+      {|io 10 43
+io 20 1
+inta e7 cd
+|};
       "io zz 1\n";
       "inta 1ff\n";
       "ready 2 @3\n";

@@ -69,7 +69,9 @@ let run_cmd =
           value & opt (some string) None & info [ "pin-trace" ] ~docv:"FILE" ~doc:"K4 pin trace.")
       $ Arg.(value & opt int 100_000 & info [ "max-tstates" ] ~docv:"N"))
 
-let default_stim = "# i8080-stimulus v1\nreset 0 @4\n"
+let default_stim = {|# i8080-stimulus v1
+reset 0 @4
+|}
 
 (* A CP/M .COM file under the K5 shim: loaded at 0100 behind the release's boot preamble, run until
    OUT FF or HLT. The console is port 01. *)
@@ -133,7 +135,7 @@ let com_cmd =
       $ Arg.(
           value
           & opt (some string) None
-          & info [ "io-out" ] ~docv:"FILE" ~doc:"One \"port value\" hex line per OUT."))
+          & info [ "io-out" ] ~docv:"FILE" ~doc:{|One "port value" hex line per OUT.|}))
 
 let verilog output =
   let module Circ = Hardcaml.Circuit.With_interface (Core.I) (Core.O) in

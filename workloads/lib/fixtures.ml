@@ -12,7 +12,7 @@ let bytes_of_string s = List.init (String.length s) (fun i -> Char.code s.[i])
 
 (* The data image: guard, inputs, results, scratch variables (with initial values), guard. *)
 let data_image ~table ~results_len ~vars =
-  let open I8080_asm.Items in
+  let open Rivet_i8080_asm.Items in
   let items =
     [
       db (bytes_of_string guard);
@@ -25,14 +25,16 @@ let data_image ~table ~results_len ~vars =
     @ List.concat_map (fun (name, init) -> [ label name; db (bytes_of_string init) ]) vars
     @ [ label "vars_end"; db (bytes_of_string guard) ]
   in
-  match I8080_asm.Program.assemble ~origin:data_origin items with
+  match Rivet_i8080_asm.Program.assemble ~origin:data_origin items with
   | Ok img -> img
-  | Error e -> failwith (Foundation.Diagnostic.render_all (Foundation.Diag.diagnostics e))
+  | Error e ->
+      failwith (Rivet_foundation.Diagnostic.render_all (Rivet_foundation.Diag.diagnostics e))
 
 let assemble_code items =
-  match I8080_asm.Program.assemble ~origin:0 items with
+  match Rivet_i8080_asm.Program.assemble ~origin:0 items with
   | Ok img -> img
-  | Error e -> failwith (Foundation.Diagnostic.render_all (Foundation.Diag.diagnostics e))
+  | Error e ->
+      failwith (Rivet_foundation.Diagnostic.render_all (Rivet_foundation.Diag.diagnostics e))
 
 let build ~name ~sources ~driver ~routines ~table ~results ~vars ~budget =
   let results_bytes = String.concat "" results in
@@ -59,7 +61,7 @@ let build ~name ~sources ~driver ~routines ~table ~results ~vars ~budget =
   }
 
 let finish at =
-  let open I8080_asm.Items in
+  let open Rivet_i8080_asm.Items in
   [ lxi hl 0; dad sp; shld (at "sp_save"); hlt () ]
 
 (* {1 Ackermann}
@@ -68,7 +70,7 @@ let finish at =
    HL = N, calls ack and stores HL. BC walks the table, which ack leaves alone. *)
 
 let ack_driver at =
-  let open I8080_asm.Items in
+  let open Rivet_i8080_asm.Items in
   [
     lxi sp stack_top;
     lxi hl (at "results");
@@ -120,7 +122,7 @@ let ackermann_cases = [ (0, 0); (0, 7); (1, 0); (1, 4); (2, 0); (2, 4); (3, 2) ]
 (* {1 Multiply and divide} *)
 
 let mul_driver at =
-  let open I8080_asm.Items in
+  let open Rivet_i8080_asm.Items in
   [
     lxi sp stack_top;
     lxi hl (at "table");
@@ -190,7 +192,7 @@ let multiply_cases =
 
 (* A case is (hi, lo, divisor) with hi < divisor; the table order of a case is divisor, lo, hi. *)
 let div_driver at =
-  let open I8080_asm.Items in
+  let open Rivet_i8080_asm.Items in
   [
     lxi sp stack_top;
     lxi hl (at "table");
@@ -309,7 +311,7 @@ let spigot ?(digits = 32) ?(budget = 1_000_000) () =
   in
   let at = symbol_exn data in
   let driver =
-    let open I8080_asm.Items in
+    let open Rivet_i8080_asm.Items in
     [
       lxi sp stack_top;
       lxi hl (at "results");
@@ -334,9 +336,9 @@ let spigot ?(digits = 32) ?(budget = 1_000_000) () =
       (driver
       @ Pi_spigot.routine ~fresh:(fresh_gen ())
       @ Div32x16r.routine
-      @ [ I8080_asm.space pad ]
+      @ [ Rivet_i8080_asm.space pad ]
       @ Pi_mul10000.routine
-      @ [ I8080_asm.label "ra"; I8080_asm.space ((2 * n) + 2) ])
+      @ [ Rivet_i8080_asm.label "ra"; Rivet_i8080_asm.space ((2 * n) + 2) ])
   in
   let pad = (256 - (symbol_exn (code 0) "m10000" mod 256)) mod 256 in
   let code = code pad in

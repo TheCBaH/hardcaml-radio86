@@ -34,7 +34,7 @@
    received, in order; the first group is 3141. *)
 
 let routine ~fresh =
-  let open I8080_asm.Items in
+  let open Rivet_i8080_asm.Items in
   let sym = Pi_div.sym in
   [
     (* the number of loop passes: N = digits * 7 / 2 *)

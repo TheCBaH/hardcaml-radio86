@@ -96,6 +96,6 @@ let render (m : Manifest.t) evs =
       {
         C.name = "i8080 " ^ m.id;
         lanes = [ "instructions"; "bus"; "control" ];
-        events = events evs;
+        events = List.to_seq (events evs);
       };
     ]

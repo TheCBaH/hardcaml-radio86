@@ -6,7 +6,7 @@ open I8080_rtl
 let%expect_test "length and T-states of all 256 opcodes equal Rivet's table" =
   let bad = ref [] in
   for op = 0 to 255 do
-    let t = I8080_ops.timings.(op) in
+    let t = Rivet_i8080_ops.timings.(op) in
     let untaken, taken = Plan.tstates op in
     if Plan.length op <> t.length || untaken <> t.tstates || taken <> t.taken then
       bad :=

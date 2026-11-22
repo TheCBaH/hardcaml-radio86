@@ -19,7 +19,7 @@
    are the loop: they run the shift-and-subtract step sixteen times and need ten bytes of stack. *)
 
 let routine =
-  let open I8080_asm.Items in
+  let open Rivet_i8080_asm.Items in
   [
     label "div32x16r";
     call_e (symbol "div32x16r_t");

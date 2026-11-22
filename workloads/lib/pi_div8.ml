@@ -22,12 +22,12 @@
    div32x8f must come first: Pi_div falls into it. *)
 
 let div8i ~fresh =
-  let open I8080_asm.Items in
+  let open Rivet_i8080_asm.Items in
   let l1 = fresh "div8i_l1" in
   [ dad hl; mov a h; sub c; jc_e (symbol l1); mov h a; inr l; label l1 ]
 
 let div8j ~fresh =
-  let open I8080_asm.Items in
+  let open Rivet_i8080_asm.Items in
   let l1 = fresh "div8j_l1" and l2 = fresh "div8j_l2" in
   [
     dad hl;
@@ -45,7 +45,7 @@ let div8j ~fresh =
 let rept8 f = List.concat (List.init 8 (fun _ -> f ()))
 
 let div32x8f ~fresh =
-  let open I8080_asm.Items in
+  let open Rivet_i8080_asm.Items in
   [ label "div32x8f"; mov a h; cmp c; jc_e (symbol "div32x8f_lx"); mov b l; mov l h; mvi h 0 ]
   @ rept8 (fun () -> div8i ~fresh)
   @ [ mov a l; mov l b; mov b a; label "div32x8f_lx" ]
@@ -57,7 +57,7 @@ let div32x8f ~fresh =
   @ [ mov c d; mov d e; mov e l; mov l h; mvi h 0; jmp_e (symbol "enddivision") ]
 
 let div32x8e ~fresh =
-  let open I8080_asm.Items in
+  let open Rivet_i8080_asm.Items in
   [
     label "div32x8e";
     mov a h;

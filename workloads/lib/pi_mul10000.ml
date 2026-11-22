@@ -21,4 +21,4 @@
 
 let page byte = List.init 256 (fun n -> ((n * 10000) lsr (8 * byte)) land 0xff)
 let bytes = List.concat [ page 0; page 1; page 2 ]
-let routine = I8080_asm.[ label "m10000"; db bytes ]
+let routine = Rivet_i8080_asm.[ label "m10000"; db bytes ]

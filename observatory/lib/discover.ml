@@ -1,6 +1,6 @@
 type probe = { name : string; path : string list; width : int }
 
-let signals tr = List.of_seq (Vcd_signals.of_header (Hwfrp.Trace.header tr))
+let signals tr = List.of_seq (Ovcd_signals.of_header (Hwfrp.Trace.header tr))
 
 let probes (m : Manifest.t) =
   let p name path width = { name; path; width } in
@@ -11,7 +11,7 @@ let probes (m : Manifest.t) =
         :: Option.to_list (Option.map (fun v -> p (s.name ^ ".valid") v 1) s.valid))
       m.signals
 
-type found = Present | Moved of Vcd_signals.t list | Missing
+type found = Present | Moved of Ovcd_signals.t list | Missing
 
 let leaf = function [] -> "" | l -> List.nth l (List.length l - 1)
 
@@ -29,13 +29,13 @@ let normal s =
      else s)
 
 let find sigs p =
-  if List.exists (fun (s : Vcd_signals.t) -> s.parts = p.path && s.width = p.width) sigs then
+  if List.exists (fun (s : Ovcd_signals.t) -> s.parts = p.path && s.width = p.width) sigs then
     Present
   else
     let want = normal (leaf p.path) in
     match
       List.filter
-        (fun (s : Vcd_signals.t) -> s.width = p.width && normal (leaf s.parts) = want)
+        (fun (s : Ovcd_signals.t) -> s.width = p.width && normal (leaf s.parts) = want)
         sigs
     with
     | [] -> Missing
@@ -50,11 +50,11 @@ let hint sigs p =
   | Moved l ->
       Some
         (Printf.sprintf "%s: declared as %s" p.name
-           (String.concat ", " (List.map (fun (s : Vcd_signals.t) -> s.path) l)))
+           (String.concat ", " (List.map (fun (s : Ovcd_signals.t) -> s.path) l)))
   | Missing ->
       let like =
         List.filter
-          (fun (s : Vcd_signals.t) ->
+          (fun (s : Ovcd_signals.t) ->
             let l = normal (leaf s.parts) and w = normal (leaf p.path) in
             l <> "" && w <> "" && (String.starts_with ~prefix:w l || String.starts_with ~prefix:l w))
           sigs
@@ -64,7 +64,9 @@ let hint sigs p =
         Some
           (Printf.sprintf "%s: nearest by name %s" p.name
              (String.concat ", "
-                (List.map (fun (s : Vcd_signals.t) -> Printf.sprintf "%s (%d)" s.path s.width) like)))
+                (List.map
+                   (fun (s : Ovcd_signals.t) -> Printf.sprintf "%s (%d)" s.path s.width)
+                   like)))
 
 let repath (m : Manifest.t) sigs =
   let results = check m sigs in
@@ -76,7 +78,7 @@ let repath (m : Manifest.t) sigs =
         | Moved l ->
             Some
               (Printf.sprintf "%s: %d candidates: %s" p.name (List.length l)
-                 (String.concat ", " (List.map (fun (s : Vcd_signals.t) -> s.path) l)))
+                 (String.concat ", " (List.map (fun (s : Ovcd_signals.t) -> s.path) l)))
         | Missing -> Some (Printf.sprintf "%s: %s is not declared" p.name (dotted p.path)))
       results
   in
@@ -86,7 +88,7 @@ let repath (m : Manifest.t) sigs =
     List.iter
       (fun (p, f) ->
         match f with
-        | Moved [ s ] -> Hashtbl.replace target (p.path, p.width) s.Vcd_signals.parts
+        | Moved [ s ] -> Hashtbl.replace target (p.path, p.width) s.Ovcd_signals.parts
         | _ -> ())
       results;
     let get w path = Option.value (Hashtbl.find_opt target (path, w)) ~default:path in

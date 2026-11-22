@@ -18,7 +18,7 @@
    multiplier: the high half of the product is lost. *)
 
 let routine =
-  let open I8080_asm.Items in
+  let open Rivet_i8080_asm.Items in
   [
     label "mul16";
     xra a;

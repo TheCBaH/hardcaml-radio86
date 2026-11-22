@@ -28,7 +28,7 @@ core's manifest.
 | --- | --- |
 | `Manifest` | Versioned JSON (`i8080-observation-manifest/1`): clock, sample rule and enable, and the path, width and kind (`pin` or `register`) of every pin and internal register. A path the trace lacks, or a width that differs, is a hard error that names every such probe. |
 | `Observe` | Binds the manifest to a VCD or FST with [hwfrp](https://github.com/TheCBaH/coralview/tree/main/hwfrp) and samples one `Frame` per T-state. One `Bind.collect` pass names every probe that does not resolve; the run reports `Diag.summarize` (signals never driven, constant, unknown at the end). |
-| `Discover` | Finds the manifest's probes in the trace's declarations, listed by ovcd (`Vcd_signals`, the lines of `vcd_dump --list-signals --format jsonl`): hints for a path that moved or is misspelt, and a re-pathed manifest when each probe has one candidate. |
+| `Discover` | Finds the manifest's probes in the trace's declarations, listed by ovcd (`Ovcd_signals`, the lines of `vcd_dump --list-signals --format jsonl`): hints for a path that moved or is misspelt, and a re-pathed manifest when each probe has one candidate. |
 | `Trail` | The executed instructions with the state each updated: changed registers, memory bytes written (with the byte they replaced when the capture showed it) and port transfers. |
 | `Bus` | Machine cycles from the pins: accepted transfers (not strobes), waits, reset epochs, halt acknowledge. Cycles that do not finish are reported as such. |
 | `Instr`, `Regs` | Instruction spans decoded with Rivet's i8080 decoder, and register snapshots from the core's flops. |
@@ -83,7 +83,7 @@ make rtl-lockstep-test   # Rivet's seeded programs on the core, in lockstep with
 
 ## Pins, nothing built
 
-- hwfrp (coralview `5ff364d`, on `main`) and Rivet (`9aeb149`) are opam pins, in `.devcontainer/devcontainer.json`
+- hwfrp (coralview `344cc43`) and Rivet (`d7ee073`) are opam pins, in `.devcontainer/devcontainer.json`
   and `hardcaml-radio86.opam.template`. `make pin-check` keeps the Rivet commit in agreement with
   `scripts/rivet.pin`, from which `scripts/rivet-tool.sh` builds Rivet's seeded program generator.
 - `vm80a_sim` and the exerciser images come from the

@@ -2,7 +2,7 @@
    pin_clk with two rising edges per T-state, f2 high at the second, and the pins changing there. *)
 open I8080_trace
 open Hwfrp
-open Vcd_types
+open Ovcd_types
 
 let ids = Hashtbl.create 32
 

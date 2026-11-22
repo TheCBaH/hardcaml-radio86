@@ -3,11 +3,11 @@
    instruction (the write-back lag of the Fetch_accepted snapshot), PC one past the fetch address. The
    result goes through Synth and hwfrp, so the observer is tested on programs the RTL cannot run yet. *)
 open I8080_trace
-module C = I8080_sem.Concrete_of (Compute.Concrete)
+module C = Rivet_i8080_sem.Concrete_of (Rivet_compute.Concrete)
 
 type cycle = { status : int; addr : int; data : int option; write : bool }
 
-let regs_of (r : I8080_sem.regs) ~pc : Frame.regs =
+let regs_of (r : Rivet_i8080_sem.regs) ~pc : Frame.regs =
   let bit n = Some ((r.flags lsr n) land 1) in
   {
     Frame.acc = Some r.ra;
@@ -78,7 +78,7 @@ let frames ?(origin = 0) ?(sp = 0x3000) ?(limit = 100) ?(input = 0x5a) program =
       C.step st;
       let after = C.regs st in
       let tstates = st.C.tstates - t0 in
-      let regs = regs_of before ~pc:((before.I8080_sem.rpc + 1) land 0xffff) in
+      let regs = regs_of before ~pc:((before.Rivet_i8080_sem.rpc + 1) land 0xffff) in
       let cycles =
         List.mapi
           (fun k e ->
@@ -93,7 +93,7 @@ let frames ?(origin = 0) ?(sp = 0x3000) ?(limit = 100) ?(input = 0x5a) program =
       in
       if st.C.halted then begin
         add (cycle_frames regs ~extra:1 (List.hd cycles));
-        let r = regs_of after ~pc:after.I8080_sem.rpc in
+        let r = regs_of after ~pc:after.Rivet_i8080_sem.rpc in
         add
           [
             pins ~dout:(Some 0x8a) ~sync:true r;

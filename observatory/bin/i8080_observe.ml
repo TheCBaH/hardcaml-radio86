@@ -424,7 +424,7 @@ let replay_cmd =
 let signals_cmd =
   let run trace like =
     let sigs = Discover.signals (open_trace trace) in
-    let wanted (s : Vcd_signals.t) =
+    let wanted (s : Ovcd_signals.t) =
       match like with
       | None -> true
       | Some sub ->
@@ -433,7 +433,7 @@ let signals_cmd =
           let rec go i = i + n <= String.length p && (String.sub p i n = sub || go (i + 1)) in
           go 0
     in
-    Vcd_signals.write stdout (List.to_seq (List.filter wanted sigs))
+    Ovcd_signals.write stdout (List.to_seq (List.filter wanted sigs))
   in
   Cmd.v
     (Cmd.info "signals"

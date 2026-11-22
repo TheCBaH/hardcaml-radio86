@@ -1,7 +1,7 @@
 (* Runs a fixture in Rivet's behavioural model (the concrete interpretation of the i8080 table).
    Authored in this repository (MIT). *)
 
-module S = I8080_sem.Runnable (Compute.Concrete)
+module S = Rivet_i8080_sem.Runnable (Rivet_compute.Concrete)
 
 let run (t : Fixture.t) : Fixture.outcome =
   let ports = ref false in
@@ -17,10 +17,10 @@ let run (t : Fixture.t) : Fixture.outcome =
   S.trace st
     (Some
        (function
-       | I8080_sem.Ev_write (a, v) -> writes := (a, v) :: !writes
-       | I8080_sem.Ev_in _ | I8080_sem.Ev_out _ -> ports := true
+       | Rivet_i8080_sem.Ev_write (a, v) -> writes := (a, v) :: !writes
+       | Rivet_i8080_sem.Ev_in _ | Rivet_i8080_sem.Ev_out _ -> ports := true
        | _ -> ()));
-  S.start st ~pc:t.code.I8080_asm.Program.origin ~sp:0;
+  S.start st ~pc:t.code.Rivet_i8080_asm.Program.origin ~sp:0;
   while (not (S.halted st)) && S.tstates st <= t.budget do
     S.step st
   done;

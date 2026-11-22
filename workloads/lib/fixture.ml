@@ -6,7 +6,7 @@
    the stack below [stack_top], with a guard under it. Code, inputs, scratch, results and stack are
    disjoint, and the data image carries a guard on each side of its writable areas. *)
 
-module Asm = I8080_asm.Program
+module Asm = Rivet_i8080_asm.Program
 
 let data_origin = 0x4000
 let stack_top = 0xf000

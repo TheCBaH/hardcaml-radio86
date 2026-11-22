@@ -15,7 +15,7 @@ let moved (m : Manifest.t) =
 
 let%expect_test "the declarations of a trace as ovcd's JSON lines" =
   List.iteri
-    (fun i s -> if i < 3 || i >= 25 then print_endline (Vcd_signals.to_line s))
+    (fun i s -> if i < 3 || i >= 25 then print_endline (Ovcd_signals.to_line s))
     (Discover.signals (trace ()));
   [%expect
     {|

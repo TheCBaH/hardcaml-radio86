@@ -3,10 +3,10 @@ x-ai-provider: "Anthropic"
 # None of these are in opam-repository yet; pin-depends is not transitive.
 pin-depends: [
   ["zipc.dev" "git+https://github.com/dbuenzli/zipc.git#4335e845388b05b9161c8fd58b4ef4363819e43b"]
-  ["unlz4.dev" "git+https://github.com/TheCBaH/ocaml-unlz4.git#f5446abf9a4ce4beb92b02ee958f345a6c8171bd"]
-  ["fst.dev" "git+https://github.com/TheCBaH/ocaml-fst.git#32d68870539fb7422c86e5d8fc62db8568b173a7"]
-  ["ovcd.dev" "git+https://github.com/TheCBaH/ovcd.git#d24473baee9b6df8255b9a464cee60c643cb5bfd"]
+  ["unlz4.dev" "git+https://github.com/TheCBaH/ocaml-unlz4.git#1b79f18cb5c7c76cb2e29a329017d78884423feb"]
+  ["fst.dev" "git+https://github.com/TheCBaH/ocaml-fst.git#0d6797ad218463775e852f86c81b793924c8d4ab"]
+  ["ovcd.dev" "git+https://github.com/TheCBaH/ovcd.git#48a850d6fe8b3573b6ae8427ebf6661099b77c47"]
   ["err_trace.0.3.0" "git+https://github.com/TheCBaH/err_trace.git#8138a417b452e55483028df851cb562fbf175eed"]
-  ["hwfrp.dev" "git+https://github.com/TheCBaH/coralview.git#5ff364d51952d98224a27ec233983f167aa350c8"]
-  ["rivet.dev" "git+https://github.com/TheCBaH/rivet.git#9aeb149b117a3402ecdc95ed4a3c1f986a79bf07"]
+  ["hwfrp.dev" "git+https://github.com/TheCBaH/coralview.git#344cc439d8c40a8509a0cb9be9d21d10693ead05"]
+  ["rivet.dev" "git+https://github.com/TheCBaH/rivet.git#d7ee073ff46e0b5c430f769bd1ff67a914a2e246"]
 ]

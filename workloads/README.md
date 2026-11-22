@@ -1,7 +1,7 @@
 # Math workloads
 
 Small, deterministic i8080 programs that run from reset to `HLT` with inputs and results in RAM: no console,
-shim, boot preamble, timer or peripheral. They are built in OCaml with Rivet's `I8080_asm` builders (no
+shim, boot preamble, timer or peripheral. They are built in OCaml with Rivet's `Rivet_i8080_asm` builders (no
 assembly text, no assembler process), checked against independent OCaml oracles, and run on three CPUs:
 Rivet's behavioural model, the Hardcaml core and the released `vm80a_sim`.
 

@@ -51,11 +51,11 @@ let describe bytes ~origin =
   match bytes with
   | [] -> (None, None)
   | op :: _ ->
-      let len = I8080_ops.timings.(op land 0xff).I8080_ops.length in
+      let len = Rivet_i8080_ops.timings.(op land 0xff).Rivet_i8080_ops.length in
       if List.length bytes < len then (Some len, None)
       else begin
         let raw = String.init len (fun i -> Char.chr (List.nth bytes i land 0xff)) in
-        match I8080_text.canonical ~origin raw with
+        match Rivet_i8080_text.canonical ~origin raw with
         | Error _ -> (Some len, None)
         | Ok c -> (
             match String.split_on_char '\n' c with
@@ -208,7 +208,7 @@ let step st (f : Frame.t) (outs : Bus.out list) =
                   (match c.data with
                   | Some b ->
                       o.o_bytes <- [ b ];
-                      o.o_len <- Some I8080_ops.timings.(b land 0xff).I8080_ops.length
+                      o.o_len <- Some Rivet_i8080_ops.timings.(b land 0xff).Rivet_i8080_ops.length
                   | None -> o.o_bad <- "the opcode byte is unknown");
                   if not o.o_snapped then begin
                     o.o_snapped <- true;

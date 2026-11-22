@@ -1,5 +1,5 @@
 open Hwfrp
-module Reference = Vcd_types.Reference
+module Reference = Ovcd_types.Reference
 
 type result = {
   events : Events.t list;
@@ -136,7 +136,7 @@ let run ?(frames = false) (m : Manifest.t) tr =
               Some
                 {
                   Frame.n;
-                  time = Vcd_types.Timestamp.to_int64 time;
+                  time = Ovcd_types.Timestamp.to_int64 time;
                   a;
                   dout;
                   din;

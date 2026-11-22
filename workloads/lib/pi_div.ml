@@ -26,10 +26,10 @@
    (svhl, mz1+1, mz2+1, mz2+2, mz3+1): code and data that Pi_spigot declares writable. *)
 
 let sym ?(off = 0) name =
-  if off = 0 then I8080_asm.symbol name else I8080_asm.(plus (symbol name) (const off))
+  if off = 0 then Rivet_i8080_asm.symbol name else Rivet_i8080_asm.(plus (symbol name) (const off))
 
 let div1x ~fresh px py =
-  let open I8080_asm.Items in
+  let open Rivet_i8080_asm.Items in
   let t1 = fresh "div1x_t1" and t2 = fresh "div1x_t2" in
   [
     adc a;
@@ -50,13 +50,13 @@ let div1x ~fresh px py =
     label t2;
   ]
 
-let div1xs px py = I8080_asm.Items.[ label px; dad hl; inr l; jmp_e (symbol py) ]
-let divzssz px = I8080_asm.Items.[ adc a; dad hl; dad de; jnc_e (symbol px) ]
-let divzasz px = I8080_asm.Items.[ adc a; dad hl; dad bc; jc_e (symbol px) ]
+let div1xs px py = Rivet_i8080_asm.Items.[ label px; dad hl; inr l; jmp_e (symbol py) ]
+let divzssz px = Rivet_i8080_asm.Items.[ adc a; dad hl; dad de; jnc_e (symbol px) ]
+let divzasz px = Rivet_i8080_asm.Items.[ adc a; dad hl; dad bc; jc_e (symbol px) ]
 
 (* divze sz: the sixteen-step loop unrolled as two chains of eight, one for each carry state. *)
 let divze ~fresh =
-  let open I8080_asm.Items in
+  let open Rivet_i8080_asm.Items in
   let n prefix k = fresh (Printf.sprintf "divze_%s%d" prefix k) in
   let s = Array.init 9 (fun k -> if k = 0 then "" else n "S" k)
   and a_ = Array.init 9 (fun k -> if k = 0 then "" else n "A" k)
@@ -68,7 +68,7 @@ let divze ~fresh =
   @ [ label s.(8); adc a; dad de; label l1 ]
 
 let divxxz ~fresh ~pxh ~pxl ~pxr =
-  let open I8080_asm.Items in
+  let open Rivet_i8080_asm.Items in
   let l1 = fresh "divxxz_l1" and l2 = fresh "divxxz_l2" and l3 = fresh "divxxz_l3" in
   [ dad de ]
   @ divze ~fresh
@@ -104,7 +104,7 @@ let divxxz ~fresh ~pxh ~pxl ~pxr =
 
 (* The expansion of the div32x16 macro, with MINUS = 1 as in the source. *)
 let div32x16 ~fresh =
-  let open I8080_asm.Items in
+  let open Rivet_i8080_asm.Items in
   let lbl = symbol in
   let q = Pi_div8.routine ~fresh in
   let long_part =

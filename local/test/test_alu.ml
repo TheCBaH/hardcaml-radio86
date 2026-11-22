@@ -2,7 +2,7 @@
    instruction: no simulation, the same functions the core instantiates on signals. *)
 open Hardcaml
 module A = I8080_rtl.Alu.Make (Bits)
-module M = I8080_sem.Model
+module M = Rivet_i8080_sem.Model
 
 let model =
   M.create ~env:{ M.input = (fun _ -> 0xff); output = (fun _ _ -> ()) } (M.create_memory ())

@@ -67,8 +67,8 @@ let cut_tail ~last (i : Instr.t) =
   && contains i.why "end of the capture"
   && List.length i.bytes < Option.value i.expected_len ~default:1
 
-module Make (V : Compute.VALUE with type t = int) = struct
-  module C = I8080_sem.Concrete_of (V)
+module Make (V : Rivet_compute.VALUE with type t = int) = struct
+  module C = Rivet_i8080_sem.Concrete_of (V)
 
   let run ~all setup ~time_of (instrs : Instr.t list) =
     let next_in = ref 0xff in
@@ -185,8 +185,8 @@ module Make (V : Compute.VALUE with type t = int) = struct
                | Some ob -> (
                    let mb = C.regs st in
                    let m =
-                     Regs.of_ints ~a:mb.I8080_sem.ra ~b:mb.rb ~c:mb.rc ~d:mb.rd ~e:mb.re ~h:mb.rh
-                       ~l:mb.rl ~f:mb.flags ~sp:mb.rsp ~pc:mb.rpc
+                     Regs.of_ints ~a:mb.Rivet_i8080_sem.ra ~b:mb.rb ~c:mb.rc ~d:mb.rd ~e:mb.re
+                       ~h:mb.rh ~l:mb.rl ~f:mb.flags ~sp:mb.rsp ~pc:mb.rpc
                    in
                    match List.find_opt (fun n -> Regs.get ob n <> Regs.get m n) Regs.names with
                    | Some n ->
@@ -217,10 +217,10 @@ module Make (V : Compute.VALUE with type t = int) = struct
               let after = C.regs st in
               let mfetched = List.rev !fetched and maccess = List.rev !accesses in
               let mregs =
-                Regs.of_ints ~a:after.I8080_sem.ra ~b:after.rb ~c:after.rc ~d:after.rd ~e:after.re
-                  ~h:after.rh ~l:after.rl ~f:after.flags ~sp:after.rsp ~pc:after.rpc
+                Regs.of_ints ~a:after.Rivet_i8080_sem.ra ~b:after.rb ~c:after.rc ~d:after.rd
+                  ~e:after.re ~h:after.rh ~l:after.rl ~f:after.flags ~sp:after.rsp ~pc:after.rpc
               in
-              (if i.pc <> Some before.I8080_sem.rpc then
+              (if i.pc <> Some before.Rivet_i8080_sem.rpc then
                  diverge i "pc"
                    (Printf.sprintf "observed %s, model %04x"
                       (match i.pc with Some p -> Printf.sprintf "%04x" p | None -> "unknown")
@@ -312,24 +312,24 @@ module Make (V : Compute.VALUE with type t = int) = struct
     }
 end
 
-module Real = Make (Compute.Concrete)
+module Real = Make (Rivet_compute.Concrete)
 
 module Ult = Make (struct
-  include Compute.Concrete
+  include Rivet_compute.Concrete
 
   let ult a b = if a <= b then 1 else 0
 end)
 
 module Aux = Make (struct
-  include Compute.Concrete
+  include Rivet_compute.Concrete
 
-  let extract a ~hi ~lo = if hi = 4 && lo = 4 then 0 else Compute.Concrete.extract a ~hi ~lo
+  let extract a ~hi ~lo = if hi = 4 && lo = 4 then 0 else Rivet_compute.Concrete.extract a ~hi ~lo
 end)
 
 module Carry = Make (struct
-  include Compute.Concrete
+  include Rivet_compute.Concrete
 
-  let add ~w a b = if w = 9 && a + b = 0x100 then 0 else Compute.Concrete.add ~w a b
+  let add ~w a b = if w = 9 && a + b = 0x100 then 0 else Rivet_compute.Concrete.add ~w a b
 end)
 
 let run ?(plant = No_plant) ?(all = false) setup ~time_of instrs =

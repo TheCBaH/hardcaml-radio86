@@ -21,7 +21,7 @@
    pending non-tail call. *)
 
 let routine =
-  let open I8080_asm.Items in
+  let open Rivet_i8080_asm.Items in
   [
     label "ack";
     mov a d;

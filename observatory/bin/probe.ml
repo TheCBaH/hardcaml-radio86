@@ -1,5 +1,5 @@
 open Hwfrp
-module Reference = Vcd_types.Reference
+module Reference = Ovcd_types.Reference
 
 let () =
   let file = Sys.argv.(1) and rule = Sys.argv.(2) in

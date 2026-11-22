@@ -6,8 +6,8 @@ let report (t : Fixture.t) =
   let o = run_model t in
   let errs = Fixture.check t o in
   Printf.printf "%s: code=%d data=%d tstates=%d stack=%d budget=%d %s\n" t.name
-    (String.length t.code.I8080_asm.Program.bytes)
-    (String.length t.data.I8080_asm.Program.bytes)
+    (String.length t.code.Rivet_i8080_asm.Program.bytes)
+    (String.length t.data.Rivet_i8080_asm.Program.bytes)
     o.tstates (Fixture.stack_depth o) t.budget
     (if errs = [] then "ok" else "FAILED");
   List.iter (Printf.printf "  %s\n") errs
